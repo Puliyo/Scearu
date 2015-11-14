@@ -16,8 +16,9 @@ import haradeka.media.scearu.R;
 public class MusicActivity extends AppCompatActivity implements GoogleApiClient.ConnectionCallbacks,
         GoogleApiClient.OnConnectionFailedListener {
 
+    private static final String TAG = "Scearu";
+
     private FileHostingService fhs;
-    private static final String TAG = "scearu-log";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -42,12 +43,12 @@ public class MusicActivity extends AppCompatActivity implements GoogleApiClient.
 
     @Override
     public void onConnected(Bundle bundle) {
-
+        Log.i(TAG, "Successfully connected to google drive");
     }
 
     @Override
     public void onConnectionSuspended(int i) {
-
+        Log.i(TAG, "Connection to google drive suspended");
     }
 
     @Override
@@ -60,6 +61,7 @@ public class MusicActivity extends AppCompatActivity implements GoogleApiClient.
             }
         } else {
             GoogleApiAvailability.getInstance().getErrorDialog(this, connectionResult.getErrorCode(), 0).show();
+            Log.e(TAG, "Google Play Service failed to start");
         }
     }
 }
