@@ -1,23 +1,17 @@
 package haradeka.media.scearu.UI;
 
-import android.content.IntentSender;
-import android.support.v7.app.AppCompatActivity;
+import android.content.Intent;
 import android.os.Bundle;
-import android.util.Log;
+import android.support.v7.app.AppCompatActivity;
+import android.widget.Toast;
 
-import com.google.android.gms.common.ConnectionResult;
-import com.google.android.gms.common.GoogleApiAvailability;
-import com.google.android.gms.common.api.GoogleApiClient;
-
-import haradeka.media.scearu.DAO.FileHostingService;
-import haradeka.media.scearu.DAO.GoogleDrive;
+import haradeka.media.scearu.FHS.FileHostingService;
+import haradeka.media.scearu.FHS.GoogleDrive;
 import haradeka.media.scearu.R;
 
-public class MusicActivity extends AppCompatActivity implements GoogleApiClient.ConnectionCallbacks,
-        GoogleApiClient.OnConnectionFailedListener {
+public class MusicActivity extends AppCompatActivity {
 
-    private static final String TAG = "Scearu";
-
+    private static final String TAG = "scearu-log";
     private FileHostingService fhs;
 
     @Override
@@ -25,43 +19,32 @@ public class MusicActivity extends AppCompatActivity implements GoogleApiClient.
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_music);
 
-        fhs = new GoogleDrive(this);
+        fhs = GoogleDrive.INSTANCE;
     }
 
     @Override
     protected void onStart() {
         super.onStart();
-        fhs.connect();
+        switch (fhs.connect(this.getApplicationContext())) {
+            case GoogleDrive.GOOGLEDRIVE_ACC_PICKER:
+                startActivityForResult(((GoogleDrive) fhs).getCredential().newChooseAccountIntent(), GoogleDrive.GOOGLEDRIVE_ACC_PICKER);
+                break;
+        }
     }
 
     @Override
     protected void onStop() {
         super.onStop();
-        fhs.disconnect();
-    }
-
-
-    @Override
-    public void onConnected(Bundle bundle) {
-        Log.i(TAG, "Successfully connected to google drive");
+//        fhs.disconnect();
     }
 
     @Override
-    public void onConnectionSuspended(int i) {
-        Log.i(TAG, "Connection to google drive suspended");
-    }
-
-    @Override
-    public void onConnectionFailed(ConnectionResult connectionResult) {
-        if (connectionResult.hasResolution()) {
-            try {
-                connectionResult.startResolutionForResult(this, ConnectionResult.RESOLUTION_REQUIRED);
-            } catch (IntentSender.SendIntentException e) {
-                Log.e(TAG, "Exception while starting resolution activity", e);
-            }
-        } else {
-            GoogleApiAvailability.getInstance().getErrorDialog(this, connectionResult.getErrorCode(), 0).show();
-            Log.e(TAG, "Google Play Service failed to start");
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        switch (requestCode) {
+            case GoogleDrive.GOOGLEDRIVE_ACC_PICKER:
+                Toast.makeText(this.getApplicationContext(), "ResultCode: " + resultCode, Toast.LENGTH_LONG).show();
+                break;
         }
     }
 }
