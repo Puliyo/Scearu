@@ -4,6 +4,7 @@
 .idea/tasks.xml
 .idea/vcs.xml
 .idea/workspace.xml
+.idea/dictionaries
 
 # Built application files
 *.apk
