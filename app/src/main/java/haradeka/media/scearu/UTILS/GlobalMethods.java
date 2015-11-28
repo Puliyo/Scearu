@@ -15,6 +15,8 @@ import haradeka.media.scearu.FHS.GoogleDrive;
  */
 public final class GlobalMethods {
 
+    public static final String SCEARU_LOG = "SCEARU_LOG";
+
     private GlobalMethods() {}
 
     public static boolean isDeviceOnline() {

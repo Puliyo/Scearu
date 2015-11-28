@@ -23,19 +23,13 @@ public class MusicActivity extends AppCompatActivity {
         setContentView(R.layout.activity_music);
 
         fhs = GoogleDrive.getInstance();
-    }
-
-    @Override
-    protected void onStart() {
-        super.onStart();
         fhs.connect(this);
     }
 
     @Override
-    protected void onStop() {
-        super.onStop();
-        finish();
-//        fhs.disconnect();
+    protected void onDestroy() {
+        fhs.disconnect();
+        super.onDestroy();
     }
 
     @Override
@@ -47,11 +41,12 @@ public class MusicActivity extends AppCompatActivity {
                     String accountName = data.getStringExtra(AccountManager.KEY_ACCOUNT_NAME);
                     if (accountName != null) {
                         ((GoogleDrive) fhs).setAccountName(accountName);
-                        ((GoogleDrive) fhs).storeAccountName(accountName);
+                        fhs.storeAccountName(accountName);
                         Toast.makeText(this.getApplicationContext(), "Logged in!", Toast.LENGTH_LONG).show();
                         fhs.connect(this);
                     }
                 } else {
+                    Log.d("SCEARU_DEBUG", "REQUEST_ACCOUNT_PICKER");
                     Toast.makeText(this.getApplicationContext(), "Error logging in!", Toast.LENGTH_LONG).show();
                     finish();
                 }
@@ -59,6 +54,10 @@ public class MusicActivity extends AppCompatActivity {
             case GoogleDrive.REQUEST_AUTHORIZATION:
                 Log.d("SCEARU_DEBUG", "REQUEST_AUTHORIZATION");
                 if (resultCode != RESULT_OK) {
+                    Log.d("SCEARU_DEBUG", "REQUEST_AUTHORIZATION FAILED");
+                    Toast.makeText(this.getApplicationContext(), "Error authenticating!", Toast.LENGTH_LONG).show();
+                    finish();
+                } else {
                     fhs.connect(this);
                 }
                 break;
@@ -67,10 +66,10 @@ public class MusicActivity extends AppCompatActivity {
                     GlobalMethods.isGooglePlayServicesAvailable(this);
                 }
                 break;
-            case GoogleDrive.MISSING_CLIENT_ID:
-                Toast.makeText(this.getApplicationContext(), "Credential Error!", Toast.LENGTH_LONG).show();
-                finish();
-                break;
+//            case GoogleDrive.MISSING_CLIENT_ID:
+//                Toast.makeText(this.getApplicationContext(), "Credential Error!", Toast.LENGTH_LONG).show();
+//                finish();
+//                break;
         }
     }
 }
