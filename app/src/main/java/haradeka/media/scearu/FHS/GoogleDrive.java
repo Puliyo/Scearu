@@ -3,7 +3,9 @@ package haradeka.media.scearu.FHS;
 import android.app.Activity;
 import android.app.Dialog;
 import android.os.AsyncTask;
+import android.os.Build;
 import android.text.TextUtils;
+import android.util.Log;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -20,12 +22,14 @@ import com.google.api.services.drive.model.File;
 import com.google.api.services.drive.model.FileList;
 
 import java.io.IOException;
+import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
 import haradeka.media.scearu.R;
 import haradeka.media.scearu.UTILS.ApplicationContext;
+import haradeka.media.scearu.UTILS.GlobalMethods;
 
 /**
  * Created by Puliyo on 14/11/2015.
@@ -37,9 +41,10 @@ public class GoogleDrive extends FileHostingService {
     public static final int REQUEST_GOOGLE_PLAY_SERVICES = 10;
     public static final int REQUEST_ACCOUNT_PICKER  = 11;
     public static final int REQUEST_AUTHORIZATION = 12;
-    public static final int MISSING_CLIENT_ID = 13;
+//    public static final int MISSING_CLIENT_ID = 13;
 
     private GoogleAccountCredential cred = null;
+    private MakeRequestTask task = null;
 
     private GoogleDrive() {}
 
@@ -72,22 +77,33 @@ public class GoogleDrive extends FileHostingService {
         }
 
         accountName = cred.getSelectedAccountName();
+        Log.d("SCEARU_DEBUG", "" + accountName);
 //        if (accountName == null || accountName.isEmpty()) {
 //            accountName = getSavedAccountName();
 //            setAccountName(accountName);
 //        }
 
         if (accountName == null || accountName.isEmpty()) {
+            Log.d("SCEARU_DEBUG", "CALLING REQUEST_ACCOUNT_PICKER");
             // if not logged in to google, start google login activity
             activity.startActivityForResult(cred.newChooseAccountIntent(), REQUEST_ACCOUNT_PICKER);
         } else {
-            // get google drive file content
-            new MakeRequestTask(activity, cred).execute();
+            if (task == null || task.getStatus() != AsyncTask.Status.RUNNING) {
+                // get google drive file content
+                Log.d(GlobalMethods.SCEARU_LOG, "CALLING ASYNCTASK!");
+                task = new MakeRequestTask(activity, cred);
+                task.execute();
+            } else {
+                Log.i(GlobalMethods.SCEARU_LOG, "Connection task already running!");
+            }
         }
     }
 
     @Override
     public void disconnect() {
+        if (task != null || task.getStatus() == AsyncTask.Status.RUNNING) {
+            task.cancel(true);
+        }
     }
 
     /**
@@ -102,7 +118,7 @@ public class GoogleDrive extends FileHostingService {
      * Execute file transaction in background.
      */
     private class MakeRequestTask extends AsyncTask<Void, Void, List<String>> {
-        private Activity async_act = null;
+        private WeakReference<Activity> activity_ref = null;
         private Drive service = null;
         private Exception lastError = null;
 
@@ -111,8 +127,8 @@ public class GoogleDrive extends FileHostingService {
                     AndroidHttp.newCompatibleTransport(),
                     JacksonFactory.getDefaultInstance(),
                     credential
-            ).build();
-            async_act = activity;
+            ).setApplicationName("Scearu Google Drive").build();
+            activity_ref = new WeakReference<Activity>(activity);
         }
 
         @Override
@@ -139,8 +155,13 @@ public class GoogleDrive extends FileHostingService {
         protected void onPostExecute(List<String> output) {
             if (output != null && output.size() != 0) {
                 String str = TextUtils.join("\n", output);
-                TextView tview = (TextView) async_act.findViewById(R.id.textView2);
+                TextView tview = (TextView) activity_ref.get().findViewById(R.id.textView2);
                 tview.setText(str);
+            } else if (isCancelled() && Build.VERSION.SDK_INT < Build.VERSION_CODES.HONEYCOMB) {
+                // cancel(true) directly calls onCancelled in sdk >= 11.
+                // for sdk < 11, check cancel in onPostExecute.
+                Log.d("SCEARU_DEBUG", "CALLING ONCANCELLED");
+                onCancelled();
             }
         }
 
@@ -149,24 +170,27 @@ public class GoogleDrive extends FileHostingService {
         // Once cancelled, onPostExecute will not be called.
         protected void onCancelled() {
             if (lastError != null) {
+                Activity activity = activity_ref.get();
+
                 if (lastError instanceof GooglePlayServicesAvailabilityIOException) {
                     // Something gone wrong with Google Play Service
                     Dialog dialog = GooglePlayServicesUtil.getErrorDialog(
                             ((GooglePlayServicesAvailabilityIOException) lastError).getConnectionStatusCode(),
-                            async_act,
+                            activity,
                             REQUEST_GOOGLE_PLAY_SERVICES);
                     dialog.show();
                 } else if (lastError instanceof UserRecoverableAuthIOException) {
                     // Need Authorisation. Call activity to recover authorisation.
-                    async_act.startActivityForResult(
+                    Log.d("SCEARU_DEBUG", "STARTING REQUEST_AUTHORIZATION");
+                    activity.startActivityForResult(
                             ((UserRecoverableAuthIOException) lastError).getIntent(),
                             REQUEST_AUTHORIZATION);
                 } else if (lastError instanceof IllegalArgumentException) {
                     // Account name is invalid. Redo login.
-                    async_act.startActivityForResult(cred.newChooseAccountIntent(), REQUEST_ACCOUNT_PICKER);
+                    activity.startActivityForResult(cred.newChooseAccountIntent(), REQUEST_ACCOUNT_PICKER);
                 } else if (lastError instanceof GoogleAuthIOException) {
                     // Missing Client ID in Developer Console
-                    async_act.setResult(MISSING_CLIENT_ID);
+                    Toast.makeText(ApplicationContext.get(), "Credential Error!\nReport Bug!", Toast.LENGTH_LONG).show();
                 } else {
                     Toast.makeText(
                             ApplicationContext.get(),
