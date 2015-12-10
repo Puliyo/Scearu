@@ -5,6 +5,8 @@ import android.content.Intent;
 import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
+import android.view.View;
+import android.widget.Button;
 import android.widget.Toast;
 
 import haradeka.media.scearu.FHS.FileHostingService;
@@ -12,9 +14,10 @@ import haradeka.media.scearu.FHS.GoogleDrive;
 import haradeka.media.scearu.R;
 import haradeka.media.scearu.UTILS.GlobalMethods;
 
+// TODO: HTTPclient to login for google-account ..
+
 public class MusicActivity extends AppCompatActivity {
 
-    private static final String TAG = "scearu-log";
     private FileHostingService fhs;
 
     @Override
@@ -24,11 +27,24 @@ public class MusicActivity extends AppCompatActivity {
 
         fhs = GoogleDrive.getInstance();
         fhs.connect(this);
+
+        Button music_btn = (Button) findViewById(R.id.button2);
+        music_btn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                ((GoogleDrive) fhs).playMusic(getBaseContext());
+            }
+        });
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
     }
 
     @Override
     protected void onDestroy() {
-        fhs.disconnect();
+//        fhs.disconnect();
         super.onDestroy();
     }
 
