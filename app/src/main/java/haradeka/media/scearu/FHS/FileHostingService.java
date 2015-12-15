@@ -113,6 +113,15 @@ public abstract class FileHostingService {
          */
         public abstract void update();
 
+        public void clear() {
+            hashMap.clear();
+        }
+
+        public void release() {
+            hashMap.clear();
+            weakContext.clear();
+        }
+
         @Override
         public int getCount() {
             String[] values = hashMap.get(defaultKey);
@@ -141,7 +150,7 @@ public abstract class FileHostingService {
 
             if (v == null) {
                 v = ((LayoutInflater) weakContext.get().getSystemService(Context.LAYOUT_INFLATER_SERVICE))
-                        .inflate(R.layout.media_item, null);
+                        .inflate(R.layout.list_media_item, null);
             }
 
             TextView name = (TextView) v.findViewById(R.id.media_item_text);
