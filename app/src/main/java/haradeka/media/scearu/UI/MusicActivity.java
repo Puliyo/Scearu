@@ -1,12 +1,16 @@
 package haradeka.media.scearu.UI;
 
 import android.accounts.AccountManager;
+import android.annotation.TargetApi;
 import android.content.Intent;
 import android.media.AudioManager;
 import android.media.MediaPlayer;
 import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
+import android.support.v7.widget.Toolbar;
 import android.util.Log;
+import android.view.Menu;
+import android.view.MenuItem;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ListView;
@@ -29,6 +33,8 @@ public class MusicActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_music);
+        Toolbar myToolbar = (Toolbar) findViewById(R.id.layout_activity_toolbar);
+        setSupportActionBar(myToolbar);
 
         mp = new MediaPlayer();
         mp.setAudioStreamType(AudioManager.STREAM_MUSIC);
@@ -50,7 +56,7 @@ public class MusicActivity extends AppCompatActivity {
         ListView mediaFiles = (ListView) findViewById(R.id.music_list_files);
         mediaFiles.setEmptyView(findViewById(R.id.music_tview_empty));
 
-        fhsAdapter = fhs.getAdapter(getBaseContext());
+        fhsAdapter = fhs.getAdapter(mediaFiles.getContext());
         mediaFiles.setAdapter(fhsAdapter);
         mediaFiles.setOnItemClickListener(new AdapterView.OnItemClickListener() {
             @Override
@@ -58,7 +64,6 @@ public class MusicActivity extends AppCompatActivity {
                 Toast.makeText(getApplicationContext(), fhsAdapter.getItem(position), Toast.LENGTH_SHORT).show();
                 try {
                     fhs.prepareMedia(MusicActivity.this, mp, fhsAdapter, position);
-//                    playMusic();
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
@@ -76,7 +81,29 @@ public class MusicActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         fhs.disconnect();
+        Log.d(GlobalMethods.SCEARU_LOG, "DESTROYED");
         super.onDestroy();
+    }
+
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        getMenuInflater().inflate(R.menu.music_toolbar_item, menu);
+        return true;
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        switch (item.getItemId()) {
+            case R.id.music_toolbar_refresh:
+                if (fhsAdapter != null) {
+                    fhsAdapter.clear();
+                    fhsAdapter.notifyDataSetChanged();
+                    fhs.connect(this);
+                }
+                return true;
+            default:
+                return super.onOptionsItemSelected(item);
+        }
     }
 
     @Override

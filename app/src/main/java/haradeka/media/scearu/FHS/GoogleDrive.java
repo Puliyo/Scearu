@@ -53,7 +53,8 @@ public class GoogleDrive extends FileHostingService {
     private static final String HASH_KEY_WEBLINKS = "weblinks";
 
     private GoogleAccountCredential cred = null;
-    private BaseAsyncTask task = null;
+    private BaseAsyncTask taskRequestFiles = null;
+    private BaseAsyncTask taskRequestToken = null;
     private List<File> driveFiles = null;
     private GoogleDriveAdapter driveAdapter = null;
 
@@ -105,15 +106,24 @@ public class GoogleDrive extends FileHostingService {
 
     @Override
     public void disconnect() {
-        if (task != null && task.getStatus() == AsyncTask.Status.RUNNING) {
-            task.cancel(true);
+        if (taskRequestFiles != null && taskRequestFiles.getStatus() == AsyncTask.Status.RUNNING) {
+            taskRequestFiles.cancel(true);
+            taskRequestFiles = null;
+        }
+        if (taskRequestToken != null && taskRequestToken.getStatus() == AsyncTask.Status.RUNNING) {
+            taskRequestToken.cancel(true);
+            taskRequestToken = null;
+        }
+        if (driveAdapter != null) {
+            driveAdapter.release();
+            driveAdapter = null;
         }
     }
 
     @Override
     public synchronized FHSAdapter getAdapter(Context context) {
         if (driveAdapter == null) {
-            driveAdapter = new GoogleDriveAdapter(new WeakReference<Context>(context), HASH_KEY_NAMES);
+            driveAdapter = new GoogleDriveAdapter(context, HASH_KEY_NAMES);
         }
         return driveAdapter;
     }
@@ -124,8 +134,12 @@ public class GoogleDrive extends FileHostingService {
             throws IllegalStateException, IOException {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.ICE_CREAM_SANDWICH) {
             Log.d("SCEARU_DEBUG", "API14");
+            if (taskRequestToken != null && taskRequestToken.getStatus() == AsyncTask.Status.RUNNING) {
+                Log.i(GlobalMethods.SCEARU_LOG, "Current preparing!");
+                return;
+            }
             // TODO: Task manager to ensure on task instance running at a time
-            new BaseAsyncTask<Object, Void, String>(new WeakReference<Activity>(activity)) {
+            taskRequestToken = new BaseAsyncTask<Object, Void, String>(new WeakReference<Activity>(activity)) {
                 @Override
                 protected String doInBackground(Object... params) {
                     try { return cred.getToken(); }
@@ -150,7 +164,8 @@ public class GoogleDrive extends FileHostingService {
                         e.printStackTrace();
                     }
                 }
-            }.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR, null);
+            };
+            taskRequestToken.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR, null);
         } else { // API < 14
             // TODO: API < 14 is not working
             String weburl = adapter.getItem(HASH_KEY_WEBLINKS, position);
@@ -164,8 +179,8 @@ public class GoogleDrive extends FileHostingService {
 
     public class GoogleDriveAdapter extends FHSAdapter {
 
-        public GoogleDriveAdapter(WeakReference<Context> weakContext, String defaultKey) {
-            super(weakContext, defaultKey);
+        public GoogleDriveAdapter(Context context, String defaultKey) {
+            super(new WeakReference<Context>(context), defaultKey);
         }
 
         @Override
@@ -259,46 +274,43 @@ public class GoogleDrive extends FileHostingService {
      * @return
      */
     private void setDriveFiles(Activity activity) {
-        if (task == null || task.getStatus() != AsyncTask.Status.RUNNING) {
-            task = new BaseAsyncTask<Object, Void, List<File>>(new WeakReference<Activity>(activity)) {
-                @Override
-                protected List<File> doInBackground(Object... params) {
-                    if (driveFiles != null) driveFiles.clear();
-                    try {
-                        Drive service = new Drive.Builder(
-                                AndroidHttp.newCompatibleTransport(),
-                                JacksonFactory.getDefaultInstance(),
-                                cred
-                        ).setApplicationName("Scearu Google Drive").build();
-                        List<String> fileInfo = new ArrayList<String>();
-
-                        driveFiles = getMediaFiles(service, MEDIA_DIR_MUSIC);
-                    } catch (IOException | IllegalArgumentException e) {
-                        driveFiles = null;
-                        setError(e, true);
-                    }
-                    return driveFiles;
-                }
-
-                @Override
-                protected void onPostExecute(List<File> files) {
-                    super.onPostExecute(files);
-                    if (driveFiles == null || driveFiles.isEmpty()) return;
-
-                    ListView mediaFiles = (ListView) getActivity().findViewById(R.id.music_list_files);
-                    if (mediaFiles == null) return;
-
-                    driveAdapter.update();
-                }
-            };
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
-                // @TargetApi 11
-                task.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR, null);
-            } else {
-                task.execute();
-            }
-        } else {
+        if (taskRequestFiles != null && taskRequestFiles.getStatus() == AsyncTask.Status.RUNNING) {
             Log.i(GlobalMethods.SCEARU_LOG, "Connection task already running!");
+            return;
+        }
+        taskRequestFiles = new BaseAsyncTask<Object, Void, List<File>>(new WeakReference<Activity>(activity)) {
+            @Override
+            protected List<File> doInBackground(Object... params) {
+                if (driveFiles != null) driveFiles.clear();
+                try {
+                    Drive service = new Drive.Builder(
+                            AndroidHttp.newCompatibleTransport(),
+                            JacksonFactory.getDefaultInstance(),
+                            cred
+                    ).setApplicationName("Scearu Google Drive").build();
+                    List<String> fileInfo = new ArrayList<String>();
+
+                    driveFiles = getMediaFiles(service, MEDIA_DIR_MUSIC);
+                } catch (IOException | IllegalArgumentException e) {
+                    driveFiles = null;
+                    setError(e, true);
+                }
+                return driveFiles;
+            }
+
+            @Override
+            protected void onPostExecute(List<File> files) {
+                super.onPostExecute(files);
+                if (driveFiles == null || driveFiles.isEmpty()) return;
+
+                driveAdapter.update();
+            }
+        };
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
+            // @TargetApi 11
+            taskRequestFiles.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR, null);
+        } else {
+            taskRequestFiles.execute();
         }
     }
 
@@ -339,12 +351,15 @@ public class GoogleDrive extends FileHostingService {
         @Override
         /**
          * If overriding, always call super method.
+         * Also this method will release weakActivity. Use getActivity() before getting released.
          */
         protected void onPostExecute(Result result) {
             if (isCancelled() || enforceError) { /*&& Build.VERSION.SDK_INT < Build.VERSION_CODES.HONEYCOMB */
                 // cancel(true) directly calls onCancelled in sdk >= 11.
                 // sdk < 11 does not.
                 onCancelled();
+            } else {
+                weakActivity.clear();
             }
         }
 
@@ -357,10 +372,15 @@ public class GoogleDrive extends FileHostingService {
             if (error == null) {
                 Log.i(GlobalMethods.SCEARU_LOG, "Unhandled error");
                 Toast.makeText(
-                        ApplicationContext.get(), "Terminated!", Toast.LENGTH_SHORT).show();
+                        ApplicationContext.get(), "Terminating", Toast.LENGTH_SHORT).show();
                 return;
             }
             Activity activity = weakActivity.get();
+            if (activity == null) {
+                Toast.makeText(
+                        ApplicationContext.get(), "Activity not found", Toast.LENGTH_SHORT).show();
+                return;
+            }
             if (error instanceof GooglePlayServicesAvailabilityIOException) {
                 // Something gone wrong with Google Play Service
                 Dialog dialog = GooglePlayServicesUtil.getErrorDialog(
@@ -387,6 +407,7 @@ public class GoogleDrive extends FileHostingService {
                         "Error occurred:\n" + error.getMessage(),
                         Toast.LENGTH_LONG).show();
             }
+            weakActivity.clear();
         }
     }
 }
