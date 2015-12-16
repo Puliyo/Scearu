@@ -2,6 +2,16 @@
 
 \<Description\>
 
+###### TODO:
+
+- Add Video feature
+- Add Picture feature
+- Add file Mgr feature
+- Fix UI -> Probably can submit production at this point
+- Add FHS: DropBox
+- Add FHS: OneDrive
+- Add FHS: Box
+
 ##### Reference
 [Google Drive API](https://developers.google.com/drive/)
 
