@@ -24,6 +24,10 @@
         </activity>
         <activity android:name=".UI.MusicActivity" >
         </activity>
+        <service android:name=".UTILS.MediaService"
+            android:label="@string/service_name"
+            android:exported="false">
+        </service>
         <meta-data
             android:name="com.google.android.gms.version"
             android:value="@integer/google_play_services_version" />

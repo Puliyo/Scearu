@@ -1,15 +1,10 @@
 package haradeka.media.scearu.FHS;
 
-import android.annotation.TargetApi;
 import android.app.Activity;
-import android.app.Dialog;
 import android.content.Context;
-import android.media.MediaPlayer;
-import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Build;
 import android.util.Log;
-import android.widget.ListView;
 import android.widget.Toast;
 
 import com.google.android.gms.auth.GoogleAuthException;
@@ -26,12 +21,9 @@ import com.google.api.services.drive.model.File;
 
 import java.io.IOException;
 import java.lang.ref.WeakReference;
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 
-import haradeka.media.scearu.R;
 import haradeka.media.scearu.UTILS.ApplicationContext;
 import haradeka.media.scearu.UTILS.GlobalMethods;
 
@@ -48,13 +40,12 @@ public class GoogleDrive extends FileHostingService {
 //    public static final int MISSING_CLIENT_ID = 13;
     private static final String DL_URL_PREFIX = "https://www.googleapis.com/drive/v2/files/";
     private static final String DL_URL_SUFFIX = "?alt=media";
-    private static final String HASH_KEY_NAMES = "names";
-    private static final String HASH_KEY_IDS = "ids";
-    private static final String HASH_KEY_WEBLINKS = "weblinks";
+    public static final String HASH_KEY_NAMES = "names";
+    public static final String HASH_KEY_IDS = "ids";
+    public static final String HASH_KEY_WEBLINKS = "weblinks";
 
     private GoogleAccountCredential cred = null;
     private BaseAsyncTask taskRequestFiles = null;
-    private BaseAsyncTask taskRequestToken = null;
     private List<File> driveFiles = null;
     private GoogleDriveAdapter driveAdapter = null;
 
@@ -110,14 +101,23 @@ public class GoogleDrive extends FileHostingService {
             taskRequestFiles.cancel(true);
             taskRequestFiles = null;
         }
-        if (taskRequestToken != null && taskRequestToken.getStatus() == AsyncTask.Status.RUNNING) {
-            taskRequestToken.cancel(true);
-            taskRequestToken = null;
-        }
         if (driveAdapter != null) {
             driveAdapter.release();
             driveAdapter = null;
         }
+        if (driveFiles != null) {
+            driveFiles.clear();
+        }
+    }
+
+    @Override
+    /**
+     * Set user account to log in to Google account
+     * @param accountName Sets the selected Google account name (e-mail address) -- for example "johndoe@gmail.com"
+     */
+    public void storeAccountName(String accountName) {
+        if (cred != null) { cred.setSelectedAccountName(accountName); }
+        super.storeAccountName(accountName);
     }
 
     @Override
@@ -125,59 +125,38 @@ public class GoogleDrive extends FileHostingService {
         if (driveAdapter == null) {
             driveAdapter = new GoogleDriveAdapter(context, HASH_KEY_NAMES);
         }
+        driveAdapter.fixContext(context);
         return driveAdapter;
     }
 
-    @TargetApi(14)
-    @Override
-    public void prepareMedia(final Activity activity, final MediaPlayer player, final FHSAdapter adapter, final int position)
-            throws IllegalStateException, IOException {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.ICE_CREAM_SANDWICH) {
-            Log.d("SCEARU_DEBUG", "API14");
-            if (taskRequestToken != null && taskRequestToken.getStatus() == AsyncTask.Status.RUNNING) {
-                Log.i(GlobalMethods.SCEARU_LOG, "Current preparing!");
-                return;
-            }
-            // TODO: Task manager to ensure on task instance running at a time
-            taskRequestToken = new BaseAsyncTask<Object, Void, String>(new WeakReference<Activity>(activity)) {
-                @Override
-                protected String doInBackground(Object... params) {
-                    try { return cred.getToken(); }
-                    catch (IOException | GoogleAuthException e) { setError(e, true); }
-                    return null;
-                }
+//    public String getToken(Activity activity) throws InterruptedException, ExecutionException, TimeoutException {
+//        return new BaseAsyncTask<Object, Void, String>(new WeakReference<Activity>(activity)) {
+//            @Override
+//            protected String doInBackground(Object... params) {
+//                try { return cred.getToken(); }
+//                catch (IOException | GoogleAuthException e) {
+//                    e.printStackTrace();
+//                    setError(e, true);
+//                }
+//                return null;
+//            }
+//        }.get(15000, TimeUnit.MILLISECONDS);
+//    }
 
-                @Override
-                protected void onPostExecute(String s) {
-                    super.onPostExecute(s);
-                    if (s == null || s.isEmpty()) return;
-                    Log.d("SCEARU_DEBUG", "Got token: " + s);
-                    String id = adapter.getItem(HASH_KEY_IDS, position);
-                    if (id == null || id.isEmpty()) return;
-                    HashMap<String, String> headers = new HashMap<String, String>();
-                    headers.put("Authorization", "Bearer " + s);
-                    try {
-                        player.setDataSource(activity, Uri.parse(DL_URL_PREFIX + id + DL_URL_SUFFIX), headers);
-                        player.prepare();
-                    } catch (IOException e) {
-                        // TODO: Handle invalid url
-                        e.printStackTrace();
-                    }
-                }
-            };
-            taskRequestToken.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR, null);
-        } else { // API < 14
-            // TODO: API < 14 is not working
-            String weburl = adapter.getItem(HASH_KEY_WEBLINKS, position);
-            Log.d(GlobalMethods.SCEARU_LOG, weburl);
-            if (weburl == null || weburl.isEmpty()) return;
-            player.setDataSource(weburl);
-            player.prepare();
+    public String getToken(Activity activity) {
+        try {
+            return cred.getToken();
+        } catch (IOException | GoogleAuthException e) {
+            mOnCancelled(e, activity);
+            return null;
         }
-        // TODO: prepare -> prepareAsync
     }
 
-    public class GoogleDriveAdapter extends FHSAdapter {
+    public static String generateDownloadURL(String id) {
+        return DL_URL_PREFIX + id + DL_URL_SUFFIX;
+    }
+
+    private class GoogleDriveAdapter extends FHSAdapter {
 
         public GoogleDriveAdapter(Context context, String defaultKey) {
             super(new WeakReference<Context>(context), defaultKey);
@@ -202,14 +181,6 @@ public class GoogleDrive extends FileHostingService {
 
             this.notifyDataSetChanged();
         }
-    }
-
-    /**
-     * Set user account to log in to Google account
-     * @param accountName Sets the selected Google account name (e-mail address) -- for example "johndoe@gmail.com"
-     */
-    public void setAccountName(String accountName) {
-        cred.setSelectedAccountName(accountName);
     }
 
     private List<File> getRootDirs(Drive service) throws IOException {
@@ -237,7 +208,7 @@ public class GoogleDrive extends FileHostingService {
 
     private List<File> getMediaFiles(Drive service, final String MEDIA_DIR) throws IOException {
         String parent_search_term = "";
-        String media_search_term = "";
+        String media_search_term;
 
         switch (MEDIA_DIR) {
             case MEDIA_DIR_MUSIC:
@@ -288,10 +259,9 @@ public class GoogleDrive extends FileHostingService {
                             JacksonFactory.getDefaultInstance(),
                             cred
                     ).setApplicationName("Scearu Google Drive").build();
-                    List<String> fileInfo = new ArrayList<String>();
 
                     driveFiles = getMediaFiles(service, MEDIA_DIR_MUSIC);
-                } catch (IOException | IllegalArgumentException e) {
+                } catch (Exception e) {
                     driveFiles = null;
                     setError(e, true);
                 }
@@ -299,12 +269,27 @@ public class GoogleDrive extends FileHostingService {
             }
 
             @Override
+            protected boolean onCancelled(Exception error) {
+                // task interrupted while connecting to Google Drive. Ignore error.
+                if (error instanceof IOException) {
+                    Throwable t = error.getCause();
+                    if (t != null && t instanceof InterruptedException) {
+                        Log.i(GlobalMethods.SCEARU_LOG, "Terminating Drive Access!");
+                        return true;
+                    }
+                } else {
+                    return mOnCancelled(error, getActivity());
+                }
+                return false;
+            }
+
+            @Override
             protected void onPostExecute(List<File> files) {
                 super.onPostExecute(files);
                 if (driveFiles == null || driveFiles.isEmpty()) return;
-
                 driveAdapter.update();
             }
+
         };
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
             // @TargetApi 11
@@ -312,102 +297,31 @@ public class GoogleDrive extends FileHostingService {
         } else {
             taskRequestFiles.execute();
         }
+        setTimeoutAsyncTask(taskRequestFiles, 30000);
     }
 
-    /**
-     * Base AsyncTask which does activity and error handling for you.
-     * Beware of <i>cannot be cast to ...</i> error.
-     * http://stackoverflow.com/questions/20455644/object-cannot-be-cast-to-void-in-asynctask
-     * @param <Params>
-     * @param <Progress>
-     * @param <Result>
-     */
-    private abstract class BaseAsyncTask<Params, Progress, Result> extends AsyncTask<Params, Progress, Result> {
-        private WeakReference<Activity> weakActivity = null;
-        private Exception error = null;
-        private boolean enforceError = false;
-
-        public BaseAsyncTask(WeakReference<Activity> weakActivity) {
-            this.weakActivity = weakActivity;
+    private boolean mOnCancelled(Exception error, Activity activity) {
+        if (activity != null && error instanceof GooglePlayServicesAvailabilityIOException) {
+            // Something gone wrong with Google Play Service
+            GooglePlayServicesUtil.getErrorDialog(
+                    ((GooglePlayServicesAvailabilityIOException) error).getConnectionStatusCode(),
+                    activity, REQUEST_GOOGLE_PLAY_SERVICES).show();
+            return true;
+        } else if (activity != null && error instanceof UserRecoverableAuthIOException) {
+            // Need Authorisation. Call activity to recover authorisation.
+            activity.startActivityForResult(
+                    ((UserRecoverableAuthIOException) error).getIntent(),
+                    REQUEST_AUTHORIZATION);
+            return true;
+        } else if (activity != null && error instanceof IllegalArgumentException) {
+            // Account name is invalid. Redo login.
+            activity.startActivityForResult(cred.newChooseAccountIntent(), REQUEST_ACCOUNT_PICKER);
+            return true;
+        } else if (error instanceof GoogleAuthIOException) {
+            // Missing Client ID in Developer Console
+            Toast.makeText(ApplicationContext.get(), "Credential Error!\nReport Bug!", Toast.LENGTH_LONG).show();
+            return true;
         }
-
-        protected Activity getActivity() {
-            return weakActivity.get();
-        }
-
-        protected Exception getError() {
-            return error;
-        }
-
-        protected void setError(Exception e) {
-            setError(e, false);
-        }
-
-        protected void setError(Exception e, boolean enforce) {
-            error = e;
-            enforceError = enforce;
-        }
-
-        @Override
-        /**
-         * If overriding, always call super method.
-         * Also this method will release weakActivity. Use getActivity() before getting released.
-         */
-        protected void onPostExecute(Result result) {
-            if (isCancelled() || enforceError) { /*&& Build.VERSION.SDK_INT < Build.VERSION_CODES.HONEYCOMB */
-                // cancel(true) directly calls onCancelled in sdk >= 11.
-                // sdk < 11 does not.
-                onCancelled();
-            } else {
-                weakActivity.clear();
-            }
-        }
-
-        @Override
-        /**
-         * If overriding, always call super method.
-         * onCancelled() is called if boolean enforceError is true.
-         */
-        protected void onCancelled() {
-            if (error == null) {
-                Log.i(GlobalMethods.SCEARU_LOG, "Unhandled error");
-                Toast.makeText(
-                        ApplicationContext.get(), "Terminating", Toast.LENGTH_SHORT).show();
-                return;
-            }
-            Activity activity = weakActivity.get();
-            if (activity == null) {
-                Toast.makeText(
-                        ApplicationContext.get(), "Activity not found", Toast.LENGTH_SHORT).show();
-                return;
-            }
-            if (error instanceof GooglePlayServicesAvailabilityIOException) {
-                // Something gone wrong with Google Play Service
-                Dialog dialog = GooglePlayServicesUtil.getErrorDialog(
-                        ((GooglePlayServicesAvailabilityIOException) error).getConnectionStatusCode(),
-                        activity,
-                        REQUEST_GOOGLE_PLAY_SERVICES);
-                dialog.show();
-            } else if (error instanceof UserRecoverableAuthIOException) {
-                // Need Authorisation. Call activity to recover authorisation.
-                Log.d(GlobalMethods.SCEARU_LOG, "STARTING REQUEST_AUTHORIZATION");
-                activity.startActivityForResult(
-                        ((UserRecoverableAuthIOException) error).getIntent(),
-                        REQUEST_AUTHORIZATION);
-            } else if (error instanceof IllegalArgumentException) {
-                // Account name is invalid. Redo login.
-                activity.startActivityForResult(cred.newChooseAccountIntent(), REQUEST_ACCOUNT_PICKER);
-            } else if (error instanceof GoogleAuthIOException) {
-                // Missing Client ID in Developer Console
-                Toast.makeText(ApplicationContext.get(), "Credential Error!\nReport Bug!", Toast.LENGTH_LONG).show();
-            } else {
-                // TODO: Handle task.cancel() exception
-                Toast.makeText(
-                        ApplicationContext.get(),
-                        "Error occurred:\n" + error.getMessage(),
-                        Toast.LENGTH_LONG).show();
-            }
-            weakActivity.clear();
-        }
+        return false;
     }
 }

@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">Scearu</string>
+    <string name="service_name">Scearu:service</string>
+    <string name="view_list_empty">Waiting to get files..</string>
 </resources>
