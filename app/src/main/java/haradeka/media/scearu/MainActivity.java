@@ -12,6 +12,7 @@ import android.widget.Toast;
 import haradeka.media.scearu.UI.MusicActivity;
 import haradeka.media.scearu.UTILS.ApplicationContext;
 import haradeka.media.scearu.UTILS.GlobalMethods;
+import haradeka.media.scearu.UTILS.MediaService;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -37,15 +38,22 @@ public class MainActivity extends AppCompatActivity {
             music_btn.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
-                    Toast.makeText(v.getContext().getApplicationContext(), "No Internet!", Toast.LENGTH_LONG).show();
+                    Toast.makeText(v.getContext().getApplicationContext(), "No Internet!", Toast.LENGTH_SHORT).show();
                 }
             });
         }
+        startService(new Intent(this, MediaService.class));
     }
 
     @Override
     protected void onStart() {
         super.onStart();
+    }
+
+    @Override
+    protected void onDestroy() {
+        stopService(new Intent(this, MediaService.class));
+        super.onDestroy();
     }
 
     @Override
