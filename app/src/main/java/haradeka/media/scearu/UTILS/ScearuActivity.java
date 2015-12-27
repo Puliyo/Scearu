@@ -22,7 +22,10 @@ import haradeka.media.scearu.FHS.GoogleDrive;
 public abstract class ScearuActivity extends AppCompatActivity {
     protected FileHostingService fhs;
     protected MediaService mService;
-    boolean mBound = false;
+    public static enum Status {
+        BOUND, UNBOUND, PENDING
+    }
+    protected Status mBound;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -34,6 +37,7 @@ public abstract class ScearuActivity extends AppCompatActivity {
     protected void onStart() {
         super.onStart();
 
+        mBound = Status.PENDING;
         Intent intent = new Intent(this, MediaService.class);
         bindService(intent, mConnection, Context.BIND_AUTO_CREATE);
     }
@@ -41,9 +45,9 @@ public abstract class ScearuActivity extends AppCompatActivity {
     @Override
     protected void onStop() {
         super.onStop();
-        if (mBound) {
+        if (mBound == Status.BOUND) {
             unbindService(mConnection);
-            mBound = false;
+            mBound = Status.UNBOUND;
         }
     }
 
@@ -52,7 +56,8 @@ public abstract class ScearuActivity extends AppCompatActivity {
         public void onServiceConnected(ComponentName name, IBinder service) {
             MediaService.LocalBinder binder = (MediaService.LocalBinder) service;
             mService = binder.getService();
-            mBound = true;
+            mBound = Status.BOUND;
+            mOnServiceConnected();
         }
 
         @Override
@@ -62,9 +67,22 @@ public abstract class ScearuActivity extends AppCompatActivity {
          * This is not called when the client unbinds.
          */
         public void onServiceDisconnected(ComponentName name) {
-            mBound = false;
+            mBound = Status.UNBOUND;
+            mOnServiceDisconnected();
         }
     };
+
+    /**
+     * Method for overriding.
+     * Define subclasses onServiceConnected() here.
+     */
+    public void mOnServiceConnected() {}
+
+    /**
+     * Method for overriding.
+     * Define subclasses onServiceDisconnected() here.
+     */
+    public void mOnServiceDisconnected() {}
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {

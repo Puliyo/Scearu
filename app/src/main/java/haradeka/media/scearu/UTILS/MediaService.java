@@ -11,27 +11,24 @@ import android.os.Binder;
 import android.os.Build;
 import android.os.IBinder;
 import android.util.Log;
-
-import com.google.android.gms.auth.GoogleAuthException;
+import android.widget.MediaController;
 
 import java.io.IOException;
 import java.util.HashMap;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 
 import haradeka.media.scearu.FHS.FileHostingService;
 import haradeka.media.scearu.FHS.GoogleDrive;
-import haradeka.media.scearu.R;
 
 /**
  * Created by Puliyo on 21/12/2015.
  */
-public class MediaService extends Service {
+public class MediaService extends Service implements MediaController.MediaPlayerControl {
     private FileHostingService fhs;
     private IBinder mBinder = new LocalBinder();
+
     private MediaPlayer mp = null;
     private AsyncTask prepareMusicTask;
+    private int bufferPercentage;
 
     @Override
     public void onCreate() {
@@ -58,6 +55,12 @@ public class MediaService extends Service {
                 return false;
             }
         });
+        mp.setOnBufferingUpdateListener(new MediaPlayer.OnBufferingUpdateListener() {
+            @Override
+            public void onBufferingUpdate(MediaPlayer mp, int percent) {
+                setBufferPercentage(percent);
+            }
+        });
     }
 
     @Override
@@ -68,12 +71,19 @@ public class MediaService extends Service {
         }
         if (mp != null) mp.release();
         if (fhs != null) fhs.disconnect();
+        Log.d(GlobalMethods.SCEARU_LOG, "Bye Service");
         super.onDestroy();
     }
 
     @Override
     public IBinder onBind(Intent intent) {
         return mBinder;
+    }
+
+    @Override
+    public boolean onUnbind(Intent intent) {
+        Log.d(GlobalMethods.SCEARU_LOG, "UNBINDED");
+        return super.onUnbind(intent);
     }
 
     /************************************
@@ -86,13 +96,20 @@ public class MediaService extends Service {
         }
     }
 
+    public MediaPlayer getMediaPlayer() {
+        return mp;
+    }
+
+    public synchronized void setBufferPercentage(int bufferPercentage) {
+        this.bufferPercentage = bufferPercentage;
+    }
+
     public void prepare(final int position) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.ICE_CREAM_SANDWICH) {
             prepare_v14(position);
         } else {
             prepare_v1(position);
         }
-
     }
 
     // TODO: prepare_v1 not working
@@ -104,6 +121,7 @@ public class MediaService extends Service {
             mp.setDataSource(weburl);
         } catch (IOException e) {
             // TODO:
+            Log.d(GlobalMethods.SCEARU_LOG, "Oops! Error! MediaService:4");
             e.printStackTrace();
         }
         mp.prepareAsync();
@@ -126,10 +144,12 @@ public class MediaService extends Service {
             @Override
             protected void onPostExecute(String s) {
                 if (s == null || s.isEmpty()) {
+                    Log.d(GlobalMethods.SCEARU_LOG, "Oops! Error! MediaService:1");
                     return; // TODO: Handle token missing error
                 }
                 String id = fhs.getAdapter(null).getItem(GoogleDrive.HASH_KEY_IDS, position);
                 if (id == null || id.isEmpty()) {
+                    Log.d(GlobalMethods.SCEARU_LOG, "Oops! Error! MediaService:2");
                     return; // TODO: Handle id missing error
                 }
                 HashMap<String, String> headers = new HashMap<String, String>();
@@ -139,11 +159,69 @@ public class MediaService extends Service {
                     mp.prepareAsync();
                 } catch (IOException e) {
                     // TODO: Handle invalid url
+                    Log.d(GlobalMethods.SCEARU_LOG, "Oops! Error! MediaService:3");
                     e.printStackTrace();
                 }
             }
         };
         prepareMusicTask.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR, null);
+    }
+
+    /************** Media Player Controller **************/
+
+    @Override
+    public void start() {
+        mp.start();
+    }
+
+    @Override
+    public void pause() {
+        mp.pause();
+    }
+
+    @Override
+    public int getDuration() {
+        return mp.getDuration();
+    }
+
+    @Override
+    public int getCurrentPosition() {
+        return mp.getCurrentPosition();
+    }
+
+    @Override
+    public void seekTo(int pos) {
+        mp.seekTo(pos);
+    }
+
+    @Override
+    public boolean isPlaying() {
+        return mp.isPlaying();
+    }
+
+    @Override
+    public int getBufferPercentage() {
+        return bufferPercentage;
+    }
+
+    @Override
+    public boolean canPause() {
+        return true;
+    }
+
+    @Override
+    public boolean canSeekBackward() {
+        return true;
+    }
+
+    @Override
+    public boolean canSeekForward() {
+        return true;
+    }
+
+    @Override
+    public int getAudioSessionId() {
+        return mp.getAudioSessionId();
     }
 
 }

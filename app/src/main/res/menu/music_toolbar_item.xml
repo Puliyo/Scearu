@@ -5,7 +5,6 @@
     <item
         android:id="@+id/music_toolbar_refresh"
         android:title="Refresh"
-        android:orderInCategory="100"
         android:icon="@drawable/ic_refresh"
         app:showAsAction="ifRoom" />
 
