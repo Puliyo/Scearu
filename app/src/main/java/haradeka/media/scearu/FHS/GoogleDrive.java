@@ -129,20 +129,6 @@ public class GoogleDrive extends FileHostingService {
         return driveAdapter;
     }
 
-//    public String getToken(Activity activity) throws InterruptedException, ExecutionException, TimeoutException {
-//        return new BaseAsyncTask<Object, Void, String>(new WeakReference<Activity>(activity)) {
-//            @Override
-//            protected String doInBackground(Object... params) {
-//                try { return cred.getToken(); }
-//                catch (IOException | GoogleAuthException e) {
-//                    e.printStackTrace();
-//                    setError(e, true);
-//                }
-//                return null;
-//            }
-//        }.get(15000, TimeUnit.MILLISECONDS);
-//    }
-
     public String getToken(Activity activity) {
         try {
             return cred.getToken();
