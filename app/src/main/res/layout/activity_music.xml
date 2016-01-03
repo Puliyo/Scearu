@@ -33,14 +33,10 @@
             android:visibility="gone"
             android:textSize="20sp"
             android:gravity="center"
-            android:text="@string/view_list_empty" />
+            android:text="@string/gdrive_list_empty" />
 
     </RelativeLayout>
 
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="0px"
-        android:id="@+id/music_linear_space"
-        android:orientation="vertical"></LinearLayout>
+    <include layout="@layout/mediacontroller" />
 
 </LinearLayout>

@@ -19,8 +19,7 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 
 import haradeka.media.scearu.R;
-import haradeka.media.scearu.UTILS.ApplicationContext;
-import haradeka.media.scearu.UTILS.GlobalMethods;
+import haradeka.media.scearu.UTILS.App;
 
 /**
  * Created by Puliyo on 14/11/2015.
@@ -30,10 +29,10 @@ public abstract class FileHostingService {
      * SharedPreferences storage name
      */
     public static final String FHS_ACCOUNT_PREFS = "FHS_ACCOUNT_PREFS";
-    public static final String ROOT_MEDIA_DIR = "Scearu";
-    public static final String MEDIA_DIR_MUSIC = "Music";
-    public static final String MEDIA_DIR_VIDEO = "Video";
-    public static final String MEDIA_DIR_PICTURE = "Picture";
+    protected static final String ROOT_MEDIA_DIR = "Scearu";
+    protected static final String MEDIA_DIR_MUSIC = "Music";
+    protected static final String MEDIA_DIR_VIDEO = "Video";
+    protected static final String MEDIA_DIR_PICTURE = "Picture";
 
     /**
      * Methods to do credential / authentication.
@@ -41,6 +40,7 @@ public abstract class FileHostingService {
      */
     public abstract void connect(Activity activity);
     public abstract void disconnect();
+    public void interrupt() {};
 
     /**
      * Store account name to SharedPreferences.
@@ -49,7 +49,7 @@ public abstract class FileHostingService {
      */
     public void storeAccountName(String accountName) {
         SharedPreferences.Editor editor =
-                ApplicationContext.get().getSharedPreferences(
+                App.getAppContext().getSharedPreferences(
                         FileHostingService.FHS_ACCOUNT_PREFS,
                         Context.MODE_PRIVATE
                 ).edit();
@@ -63,7 +63,7 @@ public abstract class FileHostingService {
      * @return account name.
      */
     public String getSavedAccountName() {
-        SharedPreferences prefs = ApplicationContext.get().getSharedPreferences(
+        SharedPreferences prefs = App.getAppContext().getSharedPreferences(
                 FileHostingService.FHS_ACCOUNT_PREFS,
                 Context.MODE_PRIVATE);
         return prefs.getString(getClass().getSimpleName() + "_account_name", "");
@@ -174,8 +174,8 @@ public abstract class FileHostingService {
         private Exception error = null;
         private boolean enforceError = false;
 
-        public BaseAsyncTask(WeakReference<Activity> weakActivity) {
-            this.weakActivity = weakActivity;
+        public BaseAsyncTask(Activity activity) {
+            this.weakActivity = new WeakReference<Activity>(activity);
         }
 
         protected Activity getActivity() {
@@ -193,6 +193,11 @@ public abstract class FileHostingService {
         protected void setError(Exception e, boolean enforce) {
             error = e;
             enforceError = enforce;
+        }
+
+        @Override
+        protected void onCancelled(Result result) {
+            onCancelled();
         }
 
         /**
@@ -214,7 +219,6 @@ public abstract class FileHostingService {
         protected void onPostExecute(Result result) {
             if (isCancelled() || enforceError) { /*&& Build.VERSION.SDK_INT < Build.VERSION_CODES.HONEYCOMB */
                 // cancel(true) directly calls onCancelled in sdk >= 11.
-                // sdk < 11 does not.
                 onCancelled();
             } else {
                 weakActivity.clear();
@@ -230,25 +234,25 @@ public abstract class FileHostingService {
             Activity activity = weakActivity.get();
 
             if (error == null) {
-                Log.i(GlobalMethods.SCEARU_LOG, "Missing error");
+                Log.i(App.SCEARU_TAG, "Missing error");
                 Toast.makeText(
-                        ApplicationContext.get(), "Terminating", Toast.LENGTH_SHORT).show();
+                        App.getAppContext(), "Terminating", Toast.LENGTH_SHORT).show();
             } else if (onCancelled(error)) {
                 // error defined in sub-class returned correctly.
             } else if (error instanceof CancellationException) { // task.cancel()
-                Toast.makeText(ApplicationContext.get(), "Request timed out.\nCancelling..",
+                Toast.makeText(App.getAppContext(), "Request timed out.\nCancelling..",
                         Toast.LENGTH_SHORT).show();
             } else if (error instanceof ExecutionException) { // task threw an exception
-                Toast.makeText(ApplicationContext.get(), "Error in task.\nCancelling..",
+                Toast.makeText(App.getAppContext(), "Error in task.\nCancelling..",
                         Toast.LENGTH_SHORT).show();
             } else if (error instanceof InterruptedException) { // task interrupted while waiting
-                Toast.makeText(ApplicationContext.get(), "Task interrupted.\nCancelling..",
+                Toast.makeText(App.getAppContext(), "Task interrupted.\nCancelling..",
                         Toast.LENGTH_SHORT).show();
             } else {
-                Log.e(GlobalMethods.SCEARU_LOG, "Unhandled Error: "
+                Log.e(App.SCEARU_TAG, "Unhandled Error: "
                         + error.getClass().getSimpleName() + " - " + error.getMessage());
                 Toast.makeText(
-                        ApplicationContext.get(),
+                        App.getAppContext(),
                         "Error occurred:\n" + error.getMessage(),
                         Toast.LENGTH_LONG).show();
             }

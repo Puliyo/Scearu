@@ -1,6 +1,7 @@
 package haradeka.media.scearu.UTILS;
 
 import android.app.Activity;
+import android.app.Application;
 import android.content.Context;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
@@ -11,17 +12,25 @@ import com.google.android.gms.common.GoogleApiAvailability;
 import haradeka.media.scearu.FHS.GoogleDrive;
 
 /**
- * Created by Puliyo on 21/11/2015.
+ * Created by Puliyo on 28/12/2015.
  */
-public final class GlobalMethods {
+public class App extends Application {
+    public static final String SCEARU_TAG = "SCEARU_LOG";
+    private static Context context;
 
-    public static final String SCEARU_LOG = "SCEARU_LOG";
+    @Override
+    public void onCreate() {
+        super.onCreate();
+        App.context = getApplicationContext();
+    }
 
-    private GlobalMethods() {}
+    public static Context getAppContext() {
+        return App.context;
+    }
 
     public static boolean isDeviceOnline() {
         ConnectivityManager connMgr =
-                (ConnectivityManager) ApplicationContext.get().getSystemService(Context.CONNECTIVITY_SERVICE);
+                (ConnectivityManager) getAppContext().getSystemService(Context.CONNECTIVITY_SERVICE);
         NetworkInfo networkInfo = connMgr.getActiveNetworkInfo();
         return (networkInfo != null && networkInfo.isConnected());
     }

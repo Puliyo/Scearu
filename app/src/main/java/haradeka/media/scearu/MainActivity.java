@@ -5,13 +5,14 @@ import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
 import android.view.Menu;
+import android.view.MenuItem;
 import android.view.View;
 import android.widget.Button;
 import android.widget.Toast;
 
 import haradeka.media.scearu.UI.MusicActivity;
-import haradeka.media.scearu.UTILS.ApplicationContext;
-import haradeka.media.scearu.UTILS.GlobalMethods;
+import haradeka.media.scearu.UTILS.AboutActivity;
+import haradeka.media.scearu.UTILS.App;
 import haradeka.media.scearu.UTILS.MediaService;
 
 public class MainActivity extends AppCompatActivity {
@@ -25,9 +26,7 @@ public class MainActivity extends AppCompatActivity {
 
         Button music_btn = (Button) findViewById(R.id.main_btn_music);
 
-        ApplicationContext.getInstance().init(getApplicationContext());
-
-        if (GlobalMethods.isGooglePlayServicesAvailable(this) && GlobalMethods.isDeviceOnline()) {
+        if (App.isGooglePlayServicesAvailable(this) && App.isDeviceOnline()) {
             music_btn.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
@@ -59,6 +58,19 @@ public class MainActivity extends AppCompatActivity {
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
         getMenuInflater().inflate(R.menu.main_toolbar_item, menu);
+        getMenuInflater().inflate(R.menu.about_toolbar_item, menu);
+        return true;
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        switch (item.getItemId()) {
+            case R.id.about_toolbar:
+                startActivity(new Intent(getBaseContext(), AboutActivity.class));
+                break;
+            default:
+                return super.onOptionsItemSelected(item);
+        }
         return true;
     }
 }

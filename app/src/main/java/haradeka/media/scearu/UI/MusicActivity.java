@@ -3,31 +3,28 @@ package haradeka.media.scearu.UI;
 import android.media.MediaPlayer;
 import android.os.Bundle;
 import android.os.Handler;
-import android.support.v4.view.MenuItemCompat;
 import android.support.v7.widget.Toolbar;
-import android.text.TextUtils;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ListView;
-import android.widget.MediaController;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import haradeka.media.scearu.FHS.FileHostingService;
 import haradeka.media.scearu.FHS.GoogleDrive;
 import haradeka.media.scearu.R;
-import haradeka.media.scearu.UTILS.GlobalMethods;
+import haradeka.media.scearu.UTILS.App;
+import haradeka.media.scearu.UTILS.MyMediaController;
 import haradeka.media.scearu.UTILS.ScearuActivity;
 
 public class MusicActivity extends ScearuActivity {
     private ListView mediaFiles;
     private Handler killTimer;
-    private Runnable killRunner;
-    private MediaController mediaController;
     private TextView musicMarquee;
+    private MyMediaController mediaController;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -36,18 +33,7 @@ public class MusicActivity extends ScearuActivity {
         Toolbar myToolbar = (Toolbar) findViewById(R.id.layout_activity_toolbar);
         setSupportActionBar(myToolbar);
 
-
         killTimer = new Handler();
-        killRunner = new Runnable() {
-            @Override
-            public void run() {
-                Log.d(GlobalMethods.SCEARU_LOG, "Killing MusicAct");
-                finish();
-            }
-        };
-
-        mediaController = new MediaController(this, true);
-        mediaController.setAnchorView(findViewById(R.id.music_linear_space));
 
         mediaFiles = (ListView) findViewById(R.id.music_list_files);
         mediaFiles.setEmptyView(findViewById(R.id.music_tview_empty));
@@ -60,10 +46,12 @@ public class MusicActivity extends ScearuActivity {
                 if (mediaController.isShowing()) {
                     mediaController.hide();
                 } else {
-                    mediaController.show(0);
+                    mediaController.show();
                 }
             }
         });
+
+        mediaController = new MyMediaController(this, R.layout.activity_music);
 
         final FileHostingService.FHSAdapter fhsAdapter = fhs.getAdapter(mediaFiles.getContext());
 
@@ -89,13 +77,13 @@ public class MusicActivity extends ScearuActivity {
     @Override
     protected void onStart() {
         super.onStart();
-        killTimer.removeCallbacksAndMessages(killRunner);
+        killTimer.removeCallbacks(killRunner);
     }
 
     @Override
     protected void onStop() {
         super.onStop();
-        killTimer.removeCallbacksAndMessages(killRunner);
+        fhs.interrupt();
         killTimer.postDelayed(killRunner, 5 * 60 * 1000);
     }
 
@@ -124,22 +112,50 @@ public class MusicActivity extends ScearuActivity {
     @Override
     public void mOnServiceConnected() {
         // Overwrite onPreparedListener
-        mService.getMediaPlayer().setOnPreparedListener(preparedListener);
+        MediaPlayer mp = mService.getMediaPlayer();
+        mp.setOnPreparedListener(preparedListener);
+        mp.setOnCompletionListener(completionListener);
+        mp.setOnErrorListener(errorListener);
+        new Handler().post(new Runnable() {
+            @Override
+            public void run() {
+                mediaController.setMediaPlayer(mService);
+            }
+        });
     }
+
+    private Runnable killRunner = new Runnable() {
+        @Override
+        public void run() {
+            Log.d(App.SCEARU_TAG, "Killing MusicAct");
+            finish();
+        }
+    };
 
     private MediaPlayer.OnPreparedListener preparedListener = new MediaPlayer.OnPreparedListener() {
         @Override
         public void onPrepared(final MediaPlayer mp) {
-            mediaController.setMediaPlayer(mService);
             marqueeStart();
-            new Handler().post(new Runnable() {
-                @Override
-                public void run() {
-                    if (!mediaController.isEnabled()) mediaController.setEnabled(true);
-                    mediaController.show();
-                    mp.start();
-                }
-            });
+            mp.start();
+            mediaController.prepare();
+            mediaController.show();
+        }
+    };
+
+    private MediaPlayer.OnCompletionListener completionListener = new MediaPlayer.OnCompletionListener() {
+        @Override
+        public void onCompletion(MediaPlayer mp) {
+            Log.d(App.SCEARU_TAG, "SONG COMPLETE");
+            mediaController.complete();
+        }
+    };
+
+    private MediaPlayer.OnErrorListener errorListener = new MediaPlayer.OnErrorListener() {
+        @Override
+        public boolean onError(MediaPlayer mp, int what, int extra) {
+            Log.d(App.SCEARU_TAG, "ONERROR: " + what);
+            Log.d(App.SCEARU_TAG, "ONERROR2: " + extra);
+            return false;
         }
     };
 

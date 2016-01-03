@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/mc_main_controller"
+    android:orientation="vertical" android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:visibility="gone">
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="2dp"
+        android:background="@android:color/darker_gray"/>
+
+    <LinearLayout
+        android:orientation="horizontal"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+        <ImageButton
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content"
+            android:id="@+id/mc_shuffle"
+            android:src="@drawable/ic_shuffle"
+            android:background="@drawable/mp_icon_selector"/>
+        <ImageButton
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content"
+            android:id="@+id/mc_previous"
+            android:src="@drawable/ic_skip_previous"
+            android:background="@drawable/mp_icon_selector"/>
+        <ImageButton
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content"
+            android:id="@+id/mc_startstop"
+            android:src="@drawable/ic_play_arrow"
+            android:background="@drawable/mp_icon_selector"/>
+        <ImageButton
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content"
+            android:id="@+id/mc_next"
+            android:src="@drawable/ic_skip_next"
+            android:background="@drawable/mp_icon_selector"/>
+        <ImageButton
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content"
+            android:id="@+id/mc_repeat"
+            android:src="@drawable/ic_repeat"
+            android:background="@drawable/mp_icon_selector"/>
+    </LinearLayout>
+
+    <LinearLayout
+        android:orientation="horizontal"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:id="@+id/mc_seek_controller"
+        android:weightSum="100">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_weight="15"
+            android:layout_height="wrap_content"
+            android:paddingLeft="5dp"
+            android:textAppearance="?android:attr/textAppearanceSmall"
+            android:text="@string/mc_default_time"
+            android:id="@+id/mc_currenttime" />
+
+        <SeekBar
+            android:layout_width="0dp"
+            android:layout_weight="70"
+            android:layout_height="wrap_content"
+            android:id="@+id/mc_seekbar" />
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_weight="15"
+            android:layout_height="wrap_content"
+            android:paddingRight="5dp"
+            android:textAppearance="?android:attr/textAppearanceSmall"
+            android:text="@string/mc_default_time"
+            android:id="@+id/mc_endtime" />
+
+    </LinearLayout>
+
+
+</LinearLayout>
