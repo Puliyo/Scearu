@@ -3,7 +3,6 @@ package haradeka.media.scearu.FHS;
 import android.app.Activity;
 import android.content.Context;
 import android.os.AsyncTask;
-import android.os.Build;
 import android.util.Log;
 import android.widget.Toast;
 
@@ -24,8 +23,7 @@ import java.lang.ref.WeakReference;
 import java.util.Collections;
 import java.util.List;
 
-import haradeka.media.scearu.UTILS.ApplicationContext;
-import haradeka.media.scearu.UTILS.GlobalMethods;
+import haradeka.media.scearu.UTILS.App;
 
 /**
  * Created by Puliyo on 14/11/2015.
@@ -38,11 +36,12 @@ public class GoogleDrive extends FileHostingService {
     public static final int REQUEST_ACCOUNT_PICKER  = 11;
     public static final int REQUEST_AUTHORIZATION = 12;
 //    public static final int MISSING_CLIENT_ID = 13;
-    private static final String DL_URL_PREFIX = "https://www.googleapis.com/drive/v2/files/";
-    private static final String DL_URL_SUFFIX = "?alt=media";
+    private static final String DL_URL_PREFIX_SECURE = "https://www.googleapis.com/drive/v2/files/";
+    private static final String DL_URL_SUFFIX_SECURE = "?alt=media";
+    private static final String DL_URL_PREFIX_PUBLIC = "https://drive.google.com/uc?export=download&id=";
+    private static final String DL_URL_SUFFIX_PUBLIC = "";
     public static final String HASH_KEY_NAMES = "names";
     public static final String HASH_KEY_IDS = "ids";
-    public static final String HASH_KEY_WEBLINKS = "weblinks";
 
     private GoogleAccountCredential cred = null;
     private BaseAsyncTask taskRequestFiles = null;
@@ -77,7 +76,7 @@ public class GoogleDrive extends FileHostingService {
 
         if (cred == null) {
             // Declare to use Google API
-            cred = GoogleAccountCredential.usingOAuth2(ApplicationContext.get(), Collections.singleton(DriveScopes.DRIVE));
+            cred = GoogleAccountCredential.usingOAuth2(App.getAppContext(), Collections.singleton(DriveScopes.DRIVE));
         }
 
         accountName = cred.getSelectedAccountName();
@@ -97,16 +96,22 @@ public class GoogleDrive extends FileHostingService {
 
     @Override
     public void disconnect() {
-        if (taskRequestFiles != null && taskRequestFiles.getStatus() == AsyncTask.Status.RUNNING) {
-            taskRequestFiles.cancel(true);
-            taskRequestFiles = null;
-        }
+        interrupt();
         if (driveAdapter != null) {
             driveAdapter.release();
             driveAdapter = null;
         }
         if (driveFiles != null) {
             driveFiles.clear();
+        }
+    }
+
+    @Override
+    public void interrupt() {
+        if (taskRequestFiles != null && taskRequestFiles.getStatus() == AsyncTask.Status.RUNNING) {
+            taskRequestFiles.cancel(true);
+            taskRequestFiles = null;
+            Log.d(App.SCEARU_TAG, "gDrive Interrupt kill task");
         }
     }
 
@@ -138,8 +143,12 @@ public class GoogleDrive extends FileHostingService {
         }
     }
 
-    public static String generateDownloadURL(String id) {
-        return DL_URL_PREFIX + id + DL_URL_SUFFIX;
+    public static String getSecureDownloadURL(String id) {
+        return DL_URL_PREFIX_SECURE + id + DL_URL_SUFFIX_SECURE;
+    }
+
+    public static String getPublicDownloadURL(String id) {
+        return DL_URL_PREFIX_PUBLIC + id + DL_URL_SUFFIX_PUBLIC;
     }
 
     private class GoogleDriveAdapter extends FHSAdapter {
@@ -154,16 +163,13 @@ public class GoogleDrive extends FileHostingService {
             hashMap.clear();
             String[] names = new String[size];
             String[] ids = new String[size];
-            String[] weblinks = new String[size];
             for (int i = 0; i < size; i++) {
                 File file = driveFiles.get(i);
                 names[i] = file.getTitle();
                 ids[i] = file.getId();
-                weblinks[i] = file.getWebContentLink();
             }
             hashMap.put(HASH_KEY_NAMES, names);
             hashMap.put(HASH_KEY_IDS, ids);
-            hashMap.put(HASH_KEY_WEBLINKS, weblinks);
 
             this.notifyDataSetChanged();
         }
@@ -232,10 +238,11 @@ public class GoogleDrive extends FileHostingService {
      */
     private void setDriveFiles(Activity activity) {
         if (taskRequestFiles != null && taskRequestFiles.getStatus() == AsyncTask.Status.RUNNING) {
-            Log.i(GlobalMethods.SCEARU_LOG, "Connection task already running!");
+            Log.i(App.SCEARU_TAG, "Connection task already running!");
             return;
         }
-        taskRequestFiles = new BaseAsyncTask<Object, Void, List<File>>(new WeakReference<Activity>(activity)) {
+        taskRequestFiles = new BaseAsyncTask<Object, Void, List<File>>(activity) {
+
             @Override
             protected List<File> doInBackground(Object... params) {
                 if (driveFiles != null) driveFiles.clear();
@@ -260,7 +267,7 @@ public class GoogleDrive extends FileHostingService {
                 if (error instanceof IOException) {
                     Throwable t = error.getCause();
                     if (t != null && t instanceof InterruptedException) {
-                        Log.i(GlobalMethods.SCEARU_LOG, "Terminating Drive Access!");
+                        Log.i(App.SCEARU_TAG, "Terminating Drive Access!");
                         return true;
                     }
                 } else {
@@ -277,12 +284,7 @@ public class GoogleDrive extends FileHostingService {
             }
 
         };
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
-            // @TargetApi 11
-            taskRequestFiles.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR, null);
-        } else {
-            taskRequestFiles.execute();
-        }
+        taskRequestFiles.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR, null);
         setTimeoutAsyncTask(taskRequestFiles, 30000);
     }
 
@@ -305,7 +307,7 @@ public class GoogleDrive extends FileHostingService {
             return true;
         } else if (error instanceof GoogleAuthIOException) {
             // Missing Client ID in Developer Console
-            Toast.makeText(ApplicationContext.get(), "Credential Error!\nReport Bug!", Toast.LENGTH_LONG).show();
+            Toast.makeText(App.getAppContext(), "Credential Error!\nReport Bug!", Toast.LENGTH_LONG).show();
             return true;
         }
         return false;

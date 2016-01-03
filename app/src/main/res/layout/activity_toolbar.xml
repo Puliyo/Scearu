@@ -1,14 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
+
 <android.support.v7.widget.Toolbar
     xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://sche  mas.android.com/apk/res-auto"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/layout_activity_toolbar"
     android:layout_width="match_parent"
     android:layout_height="?attr/actionBarSize"
-    android:background="?attr/colorPrimary"
+    android:background="@color/colorPrimary"
     android:elevation="4dp"
-    android:theme="@style/ThemeOverlay.AppCompat.ActionBar"
-    app:popupTheme="@style/ThemeOverlay.AppCompat.Light">
+    android:theme="@style/AppTheme.AppBarOverlay"
+    app:popupTheme="@style/AppTheme.PopupOverlay">
 
     <TextView
         android:layout_width="wrap_content"
@@ -21,4 +22,4 @@
         android:focusable="false"
         android:scrollHorizontally="true" />
 
-    </android.support.v7.widget.Toolbar>
+</android.support.v7.widget.Toolbar>

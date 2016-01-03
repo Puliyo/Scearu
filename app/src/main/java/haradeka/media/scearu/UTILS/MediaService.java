@@ -1,6 +1,5 @@
 package haradeka.media.scearu.UTILS;
 
-import android.annotation.TargetApi;
 import android.app.Service;
 import android.content.Intent;
 import android.media.AudioManager;
@@ -8,10 +7,8 @@ import android.media.MediaPlayer;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Binder;
-import android.os.Build;
 import android.os.IBinder;
 import android.util.Log;
-import android.widget.MediaController;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -22,7 +19,7 @@ import haradeka.media.scearu.FHS.GoogleDrive;
 /**
  * Created by Puliyo on 21/12/2015.
  */
-public class MediaService extends Service implements MediaController.MediaPlayerControl {
+public class MediaService extends Service implements MyMediaController.MyMediaPlayerControl {
     private FileHostingService fhs;
     private IBinder mBinder = new LocalBinder();
 
@@ -35,26 +32,6 @@ public class MediaService extends Service implements MediaController.MediaPlayer
         fhs = GoogleDrive.getInstance();
         mp = new MediaPlayer();
         mp.setAudioStreamType(AudioManager.STREAM_MUSIC);
-        mp.setOnPreparedListener(new MediaPlayer.OnPreparedListener() {
-            @Override
-            public void onPrepared(MediaPlayer mp) {
-                mp.start();
-            }
-        });
-        mp.setOnCompletionListener(new MediaPlayer.OnCompletionListener() {
-            @Override
-            public void onCompletion(MediaPlayer mp) {
-                mp.reset();
-            }
-        });
-        mp.setOnErrorListener(new MediaPlayer.OnErrorListener() {
-            @Override
-            public boolean onError(MediaPlayer mp, int what, int extra) {
-                Log.d(GlobalMethods.SCEARU_LOG, "ONERROR: " + what);
-                Log.d(GlobalMethods.SCEARU_LOG, "ONERROR2: " + extra);
-                return false;
-            }
-        });
         mp.setOnBufferingUpdateListener(new MediaPlayer.OnBufferingUpdateListener() {
             @Override
             public void onBufferingUpdate(MediaPlayer mp, int percent) {
@@ -71,18 +48,19 @@ public class MediaService extends Service implements MediaController.MediaPlayer
         }
         if (mp != null) mp.release();
         if (fhs != null) fhs.disconnect();
-        Log.d(GlobalMethods.SCEARU_LOG, "Bye Service");
+        Log.d(App.SCEARU_TAG, "Bye Service");
         super.onDestroy();
     }
 
     @Override
     public IBinder onBind(Intent intent) {
+        Log.d(App.SCEARU_TAG, "BINDED: ");
         return mBinder;
     }
 
     @Override
     public boolean onUnbind(Intent intent) {
-        Log.d(GlobalMethods.SCEARU_LOG, "UNBINDED");
+        Log.d(App.SCEARU_TAG, "UNBINDED");
         return super.onUnbind(intent);
     }
 
@@ -96,76 +74,78 @@ public class MediaService extends Service implements MediaController.MediaPlayer
         }
     }
 
+    /**
+     * Do not override setOnBufferingUpdateListener() unless absolutely required.
+     * Overriding will destroy buffering function.
+     * @return
+     */
     public MediaPlayer getMediaPlayer() {
         return mp;
     }
 
-    public synchronized void setBufferPercentage(int bufferPercentage) {
+    public void setBufferPercentage(int bufferPercentage) {
         this.bufferPercentage = bufferPercentage;
     }
 
     public void prepare(final int position) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.ICE_CREAM_SANDWICH) {
-            prepare_v14(position);
-        } else {
-            prepare_v1(position);
-        }
-    }
-
-    // TODO: prepare_v1 not working
-    private void prepare_v1(final int position) {
-        String weburl = fhs.getAdapter(null).getItem(GoogleDrive.HASH_KEY_WEBLINKS, position);
-        Log.d(GlobalMethods.SCEARU_LOG, weburl);
-        if (weburl == null || weburl.isEmpty()) return;
-        try {
-            mp.setDataSource(weburl);
-        } catch (IOException e) {
-            // TODO:
-            Log.d(GlobalMethods.SCEARU_LOG, "Oops! Error! MediaService:4");
-            e.printStackTrace();
-        }
-        mp.prepareAsync();
-    }
-
-    @TargetApi(14)
-    private void prepare_v14(final int position) {
         if (prepareMusicTask != null && prepareMusicTask.getStatus() == AsyncTask.Status.RUNNING) {
-            Log.i(GlobalMethods.SCEARU_LOG, "Current preparing!");
+            Log.i(App.SCEARU_TAG, "Current preparing!");
             return;
         }
 
-        prepareMusicTask = new AsyncTask<Void, Void, String>() {
+        prepareMusicTask = new AsyncTask<Object, Void, String>() {
 
             @Override
-            protected String doInBackground(Void... params) {
+            protected String doInBackground(Object... params) {
                 return (String) ((GoogleDrive) fhs).getToken(null);
             }
 
             @Override
             protected void onPostExecute(String s) {
                 if (s == null || s.isEmpty()) {
-                    Log.d(GlobalMethods.SCEARU_LOG, "Oops! Error! MediaService:1");
+                    Log.d(App.SCEARU_TAG, "Oops! Error! MediaService:1");
                     return; // TODO: Handle token missing error
                 }
                 String id = fhs.getAdapter(null).getItem(GoogleDrive.HASH_KEY_IDS, position);
                 if (id == null || id.isEmpty()) {
-                    Log.d(GlobalMethods.SCEARU_LOG, "Oops! Error! MediaService:2");
+                    Log.d(App.SCEARU_TAG, "Oops! Error! MediaService:2");
                     return; // TODO: Handle id missing error
                 }
                 HashMap<String, String> headers = new HashMap<String, String>();
                 headers.put("Authorization", "Bearer " + s);
+                String dlurl = GoogleDrive.getSecureDownloadURL(id);
+                Log.d(App.SCEARU_TAG, "LOOOOOOG: " + dlurl);
                 try {
-                    mp.setDataSource(getBaseContext(), Uri.parse(GoogleDrive.generateDownloadURL(id)), headers);
+                    mp.reset();
+                    mp.setDataSource(getBaseContext(), Uri.parse(dlurl), headers);
                     mp.prepareAsync();
                 } catch (IOException e) {
-                    // TODO: Handle invalid url
-                    Log.d(GlobalMethods.SCEARU_LOG, "Oops! Error! MediaService:3");
+                    // TODO: error handling
                     e.printStackTrace();
                 }
             }
         };
         prepareMusicTask.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR, null);
     }
+
+    /**
+     * For future reference.
+     * setDataSource(Context, URI, Map) are hidden in API 11.
+     * Below code reveals it.
+     */
+//    private void prepare_v11() {
+//        try {
+//            Method method = mp.getClass().getMethod("setDataSource", new Class[] { Context.class, Uri.class, Map.class });
+//            method.invoke(mp, new Object[] {getBaseContext(), Uri.parse(dlurl), headers});
+//        } catch (NoSuchMethodException e) {
+//            e.printStackTrace();
+//        } catch (InvocationTargetException e) {
+//            e.printStackTrace();
+//        } catch (IllegalAccessException e) {
+//            e.printStackTrace();
+//        }
+//    }
+
 
     /************** Media Player Controller **************/
 
@@ -181,12 +161,22 @@ public class MediaService extends Service implements MediaController.MediaPlayer
 
     @Override
     public int getDuration() {
+        try {
         return mp.getDuration();
+        } catch (IllegalStateException e) {
+            Log.w(App.SCEARU_TAG, "mp state not gracefully handled..");
+            return -1;
+        }
     }
 
     @Override
     public int getCurrentPosition() {
-        return mp.getCurrentPosition();
+        try {
+            return mp.getCurrentPosition();
+        } catch (IllegalStateException e) {
+            Log.w(App.SCEARU_TAG, "mp state not elegantly handled..");
+            return -1;
+        }
     }
 
     @Override
@@ -203,25 +193,4 @@ public class MediaService extends Service implements MediaController.MediaPlayer
     public int getBufferPercentage() {
         return bufferPercentage;
     }
-
-    @Override
-    public boolean canPause() {
-        return true;
-    }
-
-    @Override
-    public boolean canSeekBackward() {
-        return true;
-    }
-
-    @Override
-    public boolean canSeekForward() {
-        return true;
-    }
-
-    @Override
-    public int getAudioSessionId() {
-        return mp.getAudioSessionId();
-    }
-
 }

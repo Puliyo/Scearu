@@ -9,10 +9,12 @@ import android.os.Bundle;
 import android.os.IBinder;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
+import android.view.MenuItem;
 import android.widget.Toast;
 
 import haradeka.media.scearu.FHS.FileHostingService;
 import haradeka.media.scearu.FHS.GoogleDrive;
+import haradeka.media.scearu.R;
 
 /**
  * Created by Puliyo on 26/12/2015.
@@ -85,6 +87,18 @@ public abstract class ScearuActivity extends AppCompatActivity {
     public void mOnServiceDisconnected() {}
 
     @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        switch (item.getItemId()) {
+            case R.id.about_toolbar:
+                startActivity(new Intent(getBaseContext(), AboutActivity.class));
+                break;
+            default:
+                return super.onOptionsItemSelected(item);
+        }
+        return true;
+    }
+
+    @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         switch (requestCode) {
@@ -97,15 +111,15 @@ public abstract class ScearuActivity extends AppCompatActivity {
                         fhs.connect(this);
                     }
                 } else {
-                    Log.d("SCEARU_DEBUG", "REQUEST_ACCOUNT_PICKER");
+                    Log.d(App.SCEARU_TAG, "REQUEST_ACCOUNT_PICKER");
                     Toast.makeText(this.getApplicationContext(), "Error logging in!", Toast.LENGTH_LONG).show();
                     finish();
                 }
                 break;
             case GoogleDrive.REQUEST_AUTHORIZATION:
-                Log.d("SCEARU_DEBUG", "REQUEST_AUTHORIZATION");
+                Log.d(App.SCEARU_TAG, "REQUEST_AUTHORIZATION");
                 if (resultCode != RESULT_OK) {
-                    Log.d("SCEARU_DEBUG", "REQUEST_AUTHORIZATION FAILED");
+                    Log.d(App.SCEARU_TAG, "REQUEST_AUTHORIZATION FAILED");
                     Toast.makeText(this.getApplicationContext(), "Error authenticating!", Toast.LENGTH_LONG).show();
                     finish();
                 } else {
@@ -114,7 +128,7 @@ public abstract class ScearuActivity extends AppCompatActivity {
                 break;
             case GoogleDrive.REQUEST_GOOGLE_PLAY_SERVICES:
                 if (resultCode != RESULT_OK) {
-                    GlobalMethods.isGooglePlayServicesAvailable(this);
+                    App.isGooglePlayServicesAvailable(this);
                 }
                 break;
 //            case GoogleDrive.MISSING_CLIENT_ID:
