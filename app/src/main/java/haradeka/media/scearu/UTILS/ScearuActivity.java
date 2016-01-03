@@ -24,10 +24,7 @@ import haradeka.media.scearu.R;
 public abstract class ScearuActivity extends AppCompatActivity {
     protected FileHostingService fhs;
     protected MediaService mService;
-    public static enum Status {
-        BOUND, UNBOUND, PENDING
-    }
-    protected Status mBound;
+    private boolean bounded;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -39,7 +36,7 @@ public abstract class ScearuActivity extends AppCompatActivity {
     protected void onStart() {
         super.onStart();
 
-        mBound = Status.PENDING;
+//        mBound = Status.PENDING;
         Intent intent = new Intent(this, MediaService.class);
         bindService(intent, mConnection, Context.BIND_AUTO_CREATE);
     }
@@ -47,10 +44,14 @@ public abstract class ScearuActivity extends AppCompatActivity {
     @Override
     protected void onStop() {
         super.onStop();
-        if (mBound == Status.BOUND) {
+        if (bounded) {
             unbindService(mConnection);
-            mBound = Status.UNBOUND;
+            bounded = false;
         }
+    }
+
+    public boolean isBounded() {
+        return bounded;
     }
 
     private ServiceConnection mConnection = new ServiceConnection() {
@@ -58,7 +59,7 @@ public abstract class ScearuActivity extends AppCompatActivity {
         public void onServiceConnected(ComponentName name, IBinder service) {
             MediaService.LocalBinder binder = (MediaService.LocalBinder) service;
             mService = binder.getService();
-            mBound = Status.BOUND;
+            bounded = true;
             mOnServiceConnected();
         }
 
@@ -69,7 +70,7 @@ public abstract class ScearuActivity extends AppCompatActivity {
          * This is not called when the client unbinds.
          */
         public void onServiceDisconnected(ComponentName name) {
-            mBound = Status.UNBOUND;
+            bounded = false;
             mOnServiceDisconnected();
         }
     };

@@ -13,6 +13,11 @@ import android.widget.ListView;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Random;
+
 import haradeka.media.scearu.FHS.FileHostingService;
 import haradeka.media.scearu.FHS.GoogleDrive;
 import haradeka.media.scearu.R;
@@ -23,8 +28,12 @@ import haradeka.media.scearu.UTILS.ScearuActivity;
 public class MusicActivity extends ScearuActivity {
     private ListView mediaFiles;
     private Handler killTimer;
-    private TextView musicMarquee;
+    private FileHostingService.FHSAdapter fhsAdapter;
+    private TextView musicTitle;
     private MyMediaController mediaController;
+    private Random random;
+    private List<Integer> whatRepeated;
+    private int currposition;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -34,13 +43,17 @@ public class MusicActivity extends ScearuActivity {
         setSupportActionBar(myToolbar);
 
         killTimer = new Handler();
+        random = new Random();
 
         mediaFiles = (ListView) findViewById(R.id.music_list_files);
         mediaFiles.setEmptyView(findViewById(R.id.music_tview_empty));
+        mediaFiles.setOnItemClickListener(itemClickListener);
 
-        musicMarquee = (TextView) findViewById(R.id.toolbar_tview);
-        musicMarquee.setSelected(true); // required. Otherwise focus it in xml.
-        musicMarquee.setOnClickListener(new View.OnClickListener() {
+        fhsAdapter = fhs.getAdapter(mediaFiles.getContext());
+        mediaFiles.setAdapter(fhsAdapter);
+
+        musicTitle = (TextView) findViewById(R.id.toolbar_tview);
+        musicTitle.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 if (mediaController.isShowing()) {
@@ -52,22 +65,6 @@ public class MusicActivity extends ScearuActivity {
         });
 
         mediaController = new MyMediaController(this, R.layout.activity_music);
-
-        final FileHostingService.FHSAdapter fhsAdapter = fhs.getAdapter(mediaFiles.getContext());
-
-        mediaFiles.setAdapter(fhsAdapter);
-        mediaFiles.setOnItemClickListener(new AdapterView.OnItemClickListener() {
-            @Override
-            public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-                if (mBound == Status.PENDING) {
-                    Toast.makeText(getApplicationContext(), "Waiting for media player..", Toast.LENGTH_SHORT).show();
-                    return;
-                }
-                Toast.makeText(getApplicationContext(), fhsAdapter.getItem(position), Toast.LENGTH_SHORT).show();
-                marqueePrepare(fhsAdapter.getItem(GoogleDrive.HASH_KEY_NAMES, position));
-                mService.prepare(position);
-            }
-        });
 
         if (fhsAdapter.getCount() == 0) {
             fhs.connect(this);
@@ -109,21 +106,6 @@ public class MusicActivity extends ScearuActivity {
         }
     }
 
-    @Override
-    public void mOnServiceConnected() {
-        // Overwrite onPreparedListener
-        MediaPlayer mp = mService.getMediaPlayer();
-        mp.setOnPreparedListener(preparedListener);
-        mp.setOnCompletionListener(completionListener);
-        mp.setOnErrorListener(errorListener);
-        new Handler().post(new Runnable() {
-            @Override
-            public void run() {
-                mediaController.setMediaPlayer(mService);
-            }
-        });
-    }
-
     private Runnable killRunner = new Runnable() {
         @Override
         public void run() {
@@ -132,13 +114,132 @@ public class MusicActivity extends ScearuActivity {
         }
     };
 
+    private int nextSong() {
+        int pos;
+        if (mediaController.isShuffleOn()) {
+            do {
+                pos = random.nextInt(fhsAdapter.getCount());
+            } while (pos == currposition);
+        } else {
+            pos = currposition;
+            int max = fhsAdapter.getCount();
+            if (++pos >= max) pos = 0;
+        }
+        return pos;
+    }
+
+    private void playSong(int position) {
+        mediaController.setEnabled(false);
+        musicTitle.setText(fhsAdapter.getItem(GoogleDrive.HASH_KEY_NAMES, position));
+        mService.prepare(position);
+        currposition = position;
+    }
+
+    private AdapterView.OnItemClickListener itemClickListener = new AdapterView.OnItemClickListener() {
+        @Override
+        public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
+            if (!isBounded()) {
+                Toast.makeText(getApplicationContext(), "Waiting for media player..", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            if (mediaController.getRepeatState() == MyMediaController.RepeatState.REPEATONE)
+                whatRepeated = null;
+            playSong(position);
+            Log.d(App.SCEARU_TAG, "itemClickListener complete");
+        }
+    };
+
+    @Override
+    public void mOnServiceConnected() {
+        // Overwrite onPreparedListener
+        final MediaPlayer mp = mService.getMediaPlayer();
+        mp.setOnPreparedListener(preparedListener);
+        mp.setOnCompletionListener(completionListener);
+        mp.setOnErrorListener(errorListener);
+        musicTitle.setEnabled(true);
+        mediaController.setMediaPlayer(new MyMediaController.MyMediaPlayerControl() {
+            @Override
+            public void start() {
+                mp.start();
+            }
+
+            @Override
+            public void pause() {
+                mp.pause();
+            }
+
+            @Override
+            public int getDuration() {
+                try {
+                    return mp.getDuration();
+                } catch (IllegalStateException e) {
+                    Log.w(App.SCEARU_TAG, "mp state not gracefully handled..");
+                    return -1;
+                }
+            }
+
+            @Override
+            public int getCurrentPosition() {
+                try {
+                    return mp.getCurrentPosition();
+                } catch (IllegalStateException e) {
+                    Log.w(App.SCEARU_TAG, "mp state not elegantly handled..");
+                    return -1;
+                }
+            }
+
+            @Override
+            public void seekTo(int pos) {
+                mp.seekTo(pos);
+            }
+
+            @Override
+            public void next() {
+                if (mediaController.getRepeatState() == MyMediaController.RepeatState.REPEATONE)
+                    whatRepeated = null;
+                playSong(nextSong());
+            }
+
+            @Override
+            public void previous() {
+                int pos;
+                if (mediaController.isShuffleOn()) {
+                    mp.seekTo(0);
+                    if (!mp.isPlaying()) {
+                        mp.start();
+                    }
+                } else {
+                    if (currposition == 0) {
+                        pos = fhsAdapter.getCount() - 1;
+                    } else {
+                        pos = currposition - 1;
+                    }
+                    if (mediaController.getRepeatState() == MyMediaController.RepeatState.REPEATONE)
+                        whatRepeated = null;
+                    playSong(pos);
+                }
+            }
+
+            @Override
+            public boolean isPlaying() {
+                return mp.isPlaying();
+            }
+
+            @Override
+            public int getBufferPercentage() {
+                return mService.getBufferPercentage();
+            }
+        });
+    }
+
     private MediaPlayer.OnPreparedListener preparedListener = new MediaPlayer.OnPreparedListener() {
         @Override
         public void onPrepared(final MediaPlayer mp) {
-            marqueeStart();
-            mp.start();
             mediaController.prepare();
+            mp.start();
+            mediaController.setEnabled(true);
             mediaController.show();
+            Log.d(App.SCEARU_TAG, "preparedListener complete");
         }
     };
 
@@ -147,6 +248,45 @@ public class MusicActivity extends ScearuActivity {
         public void onCompletion(MediaPlayer mp) {
             Log.d(App.SCEARU_TAG, "SONG COMPLETE");
             mediaController.complete();
+            switch (mediaController.getRepeatState()) {
+                case REPEATONE:
+                    if (mediaController.isShuffleOn()) {
+                        // if shuffle + repeatOne = Randomly play all songs once.
+                        // initialise whatRepeated
+                        if (whatRepeated == null) {
+                            whatRepeated = new ArrayList<Integer>();
+                            int length = fhsAdapter.getCount();
+                            for (int i = 0; i < length; i++) {
+                                if (i == currposition) continue;
+                                whatRepeated.add(i);
+                            }
+                        }
+                        if (whatRepeated.isEmpty()) {
+                            whatRepeated = null;
+                            break;
+                        }
+                        int index = random.nextInt(whatRepeated.size());
+                        int nextpos = whatRepeated.remove(index);
+                        Log.d(App.SCEARU_TAG, "whatRepeated: " + whatRepeated.toString());
+                        playSong(nextpos);
+                    } else {
+                        // if noShuffle + repeatOne = repeat current song.
+                        try {
+                            mp.prepare();
+                            mp.start();
+                        } catch (IOException e) {
+                            Log.w(App.SCEARU_TAG, "Failed to repeat current song");
+                        }
+                    }
+                    break;
+                case REPEAT:
+                    playSong(nextSong());
+                    break;
+                case NOREPEAT:
+                    whatRepeated = null;
+                    break;
+            }
+            Log.d(App.SCEARU_TAG, "completionListener complete");
         }
     };
 
@@ -158,14 +298,4 @@ public class MusicActivity extends ScearuActivity {
             return false;
         }
     };
-
-    private void marqueePrepare(CharSequence text) {
-        if (musicMarquee.getVisibility() != View.GONE) musicMarquee.setVisibility(View.GONE);
-        musicMarquee.setText(text);
-    }
-
-    private void marqueeStart() {
-        if (!musicMarquee.isEnabled()) musicMarquee.setEnabled(true);
-        if (musicMarquee.getVisibility() != View.VISIBLE) musicMarquee.setVisibility(View.VISIBLE);
-    }
 }
