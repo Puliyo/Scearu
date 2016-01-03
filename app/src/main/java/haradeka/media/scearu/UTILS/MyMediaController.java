@@ -23,6 +23,9 @@ import haradeka.media.scearu.R;
 public class MyMediaController {
     private MyMediaPlayerControl mPlayer;
     private Handler seekhandler;
+    private StringBuilder timebuilder;
+    private Formatter timeformatter;
+
     private LinearLayout mainController;
     private ImageButton shuffle;
     private ImageButton next;
@@ -32,16 +35,22 @@ public class MyMediaController {
     private SeekBar seekbar;
     private TextView currenttime;
     private TextView endtime;
+
     private boolean showing;
+    private boolean shuffleOn;
+    private RepeatState repeatState;
     private boolean mDragging;
     private boolean isPrepared;
     private int fetchbuffer;
     private int mbuffer;
     private int fetchduration;
     private int mduration;
-    private StringBuilder timebuilder;
-    Formatter timeformatter;
+    private boolean runningHandler;
     private final static int UPDATE_FREQUENCY = 1000; // millis
+    public static enum RepeatState {
+        REPEAT, REPEATONE, NOREPEAT
+    }
+
     public MyMediaController(Activity activity, int parent_res) {
         this(activity, parent_res, false);
     }
@@ -56,22 +65,27 @@ public class MyMediaController {
         timeformatter = new Formatter(timebuilder, Locale.getDefault());
 
         mainController = (LinearLayout) activity.findViewById(R.id.mc_main_controller);
-
-        shuffle = (ImageButton) activity.findViewById(R.id.mc_shuffle);
+        startstop = (ImageButton) activity.findViewById(R.id.mc_startstop);
         next = (ImageButton) activity.findViewById(R.id.mc_next);
         previous = (ImageButton) activity.findViewById(R.id.mc_previous);
-        startstop = (ImageButton) activity.findViewById(R.id.mc_startstop);
-        repeat = (ImageButton) activity.findViewById(R.id.mc_startstop);
+        shuffle = (ImageButton) activity.findViewById(R.id.mc_shuffle);
+        shuffleOn = true;
+        repeat = (ImageButton) activity.findViewById(R.id.mc_repeat);
+        repeatState = RepeatState.REPEAT;
         seekbar = (SeekBar) activity.findViewById(R.id.mc_seekbar);
 
         startstop.setOnClickListener(clickListener);
-
+        next.setOnClickListener(clickListener);
+        previous.setOnClickListener(clickListener);
+        shuffle.setOnClickListener(clickListener);
+        repeat.setOnClickListener(clickListener);
         seekbar.setMax(1000);
         seekbar.setOnSeekBarChangeListener(seekBarChangeListener);
 
         currenttime = (TextView) activity.findViewById(R.id.mc_currenttime);
         endtime = (TextView) activity.findViewById(R.id.mc_endtime);
         seekhandler = new Handler();
+        runningHandler = false;
 
         if (show) {
             show();
@@ -88,25 +102,45 @@ public class MyMediaController {
         return showing;
     }
 
+    public boolean isShuffleOn() {
+        return shuffleOn;
+    }
+
+    public RepeatState getRepeatState() {
+        return repeatState;
+    }
+
     public void show() {
         if (showing) return;
-        if (mainController != null) mainController.setVisibility(View.VISIBLE);
-        seekRunner.run();
+        if (mainController != null && mainController.getVisibility() != View.VISIBLE)
+            mainController.setVisibility(View.VISIBLE);
+        runHandler(true);
         showing = true;
     }
 
     public void hide() {
         if (!showing) return;
-        seekhandler.removeCallbacks(seekRunner);
-        if (mainController != null) mainController.setVisibility(View.GONE);
+        runHandler(false);
+        if (mainController != null && mainController.getVisibility() != View.GONE)
+            mainController.setVisibility(View.GONE);
         showing = false;
+    }
+
+    public void setEnabled(boolean enabled) {
+        runHandler(enabled);
+        if (mainController.isEnabled() == enabled) return;
+        mainController.setEnabled(enabled);
     }
 
     /**
      * Call prepare to reset the buffer and duration cache.
+     * This class will enable the controller if disabled.
      */
     public void prepare() {
         isPrepared = true;
+        if (!seekbar.isEnabled()) {
+            seekbar.setEnabled(true);
+        }
         fetchbuffer = 0;
         mbuffer = -16;
         fetchduration = 0;
@@ -118,7 +152,7 @@ public class MyMediaController {
      */
     public void complete() {
         // sometimes seekbar jumps backwards. complete() are created to prevent this.
-        seekhandler.removeCallbacks(seekRunner);
+        runHandler(false);
         seekbar.setProgress(1000);
         if (currenttime != null) {
             currenttime.setText(stringForTime(mduration));
@@ -134,6 +168,17 @@ public class MyMediaController {
             }
         }
     };
+
+    private void runHandler(boolean run) {
+        if (run) {
+            if (runningHandler) return;
+            seekRunner.run();
+        } else {
+            if (!runningHandler) return;
+            seekhandler.removeCallbacks(seekRunner);
+        }
+        runningHandler = !runningHandler;
+    }
 
     private String stringForTime(int timeMs) {
         int totalSeconds = timeMs / 1000;
@@ -151,13 +196,14 @@ public class MyMediaController {
     private boolean seek() {
         if (!isPrepared) {
             Log.e(App.SCEARU_TAG, "Illegal State Exception in MediaController");
-            seekhandler.removeCallbacks(seekRunner);
+            runHandler(false);
             return false;
         }
         if (mPlayer == null || seekbar == null | mDragging) return true;
         int position = mPlayer.getCurrentPosition();
         if (position < 0) {
-            seekhandler.removeCallbacks(seekRunner);
+            runHandler(false);
+            seekbar.setEnabled(false);
             return false;
         }
 
@@ -165,6 +211,11 @@ public class MyMediaController {
         int duration;
         if (fetchduration < BUFFERCOUNT) { // prevent overhead
             duration = mPlayer.getDuration();
+            if (duration < 0) {
+                runHandler(false);
+                seekbar.setEnabled(false);
+                return false;
+            }
             if (endtime != null) {
                 endtime.setText(stringForTime(duration));
             }
@@ -214,6 +265,38 @@ public class MyMediaController {
                         prepare();
                     }
                     break;
+                case R.id.mc_shuffle:
+                    if (shuffleOn) {
+                        v.setAlpha(0.3f);
+                    } else {
+                        v.setAlpha(1f);
+                    }
+                    shuffleOn = !shuffleOn;
+                    break;
+                case R.id.mc_next:
+                    mPlayer.next();
+                    break;
+                case R.id.mc_previous:
+                    mPlayer.previous();
+                    break;
+                case R.id.mc_repeat:
+                    switch (repeatState) {
+                        case NOREPEAT:
+                            ((ImageButton) v).setImageResource(R.drawable.ic_repeat);
+                            v.setAlpha(1f);
+                            repeatState = RepeatState.REPEAT;
+                            break;
+                        case REPEAT:
+                            ((ImageButton) v).setImageResource(R.drawable.ic_repeat_one);
+                            repeatState = RepeatState.REPEATONE;
+                            break;
+                        case REPEATONE:
+                            ((ImageButton) v).setImageResource(R.drawable.ic_repeat);
+                            v.setAlpha(0.3f);
+                            repeatState = RepeatState.NOREPEAT;
+                            break;
+                    }
+                    break;
             }
         }
     };
@@ -233,7 +316,7 @@ public class MyMediaController {
         @Override
         public void onStartTrackingTouch(SeekBar seekBar) {
             mDragging = true;
-            seekhandler.removeCallbacks(seekRunner);
+            runHandler(false);
         }
 
         @Override
@@ -251,5 +334,7 @@ public class MyMediaController {
         int getDuration();
         int getBufferPercentage();
         void seekTo(int pos);
+        void next();
+        void previous();
     }
 }

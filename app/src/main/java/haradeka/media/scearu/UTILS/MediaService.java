@@ -12,6 +12,7 @@ import android.util.Log;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.Random;
 
 import haradeka.media.scearu.FHS.FileHostingService;
 import haradeka.media.scearu.FHS.GoogleDrive;
@@ -19,7 +20,7 @@ import haradeka.media.scearu.FHS.GoogleDrive;
 /**
  * Created by Puliyo on 21/12/2015.
  */
-public class MediaService extends Service implements MyMediaController.MyMediaPlayerControl {
+public class MediaService extends Service {
     private FileHostingService fhs;
     private IBinder mBinder = new LocalBinder();
 
@@ -83,6 +84,10 @@ public class MediaService extends Service implements MyMediaController.MyMediaPl
         return mp;
     }
 
+    public int getBufferPercentage() {
+        return bufferPercentage;
+    }
+
     public void setBufferPercentage(int bufferPercentage) {
         this.bufferPercentage = bufferPercentage;
     }
@@ -106,6 +111,7 @@ public class MediaService extends Service implements MyMediaController.MyMediaPl
                     Log.d(App.SCEARU_TAG, "Oops! Error! MediaService:1");
                     return; // TODO: Handle token missing error
                 }
+                // TODO: Make code FHS compatible
                 String id = fhs.getAdapter(null).getItem(GoogleDrive.HASH_KEY_IDS, position);
                 if (id == null || id.isEmpty()) {
                     Log.d(App.SCEARU_TAG, "Oops! Error! MediaService:2");
@@ -145,52 +151,4 @@ public class MediaService extends Service implements MyMediaController.MyMediaPl
 //            e.printStackTrace();
 //        }
 //    }
-
-
-    /************** Media Player Controller **************/
-
-    @Override
-    public void start() {
-        mp.start();
-    }
-
-    @Override
-    public void pause() {
-        mp.pause();
-    }
-
-    @Override
-    public int getDuration() {
-        try {
-        return mp.getDuration();
-        } catch (IllegalStateException e) {
-            Log.w(App.SCEARU_TAG, "mp state not gracefully handled..");
-            return -1;
-        }
-    }
-
-    @Override
-    public int getCurrentPosition() {
-        try {
-            return mp.getCurrentPosition();
-        } catch (IllegalStateException e) {
-            Log.w(App.SCEARU_TAG, "mp state not elegantly handled..");
-            return -1;
-        }
-    }
-
-    @Override
-    public void seekTo(int pos) {
-        mp.seekTo(pos);
-    }
-
-    @Override
-    public boolean isPlaying() {
-        return mp.isPlaying();
-    }
-
-    @Override
-    public int getBufferPercentage() {
-        return bufferPercentage;
-    }
 }

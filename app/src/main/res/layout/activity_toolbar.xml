@@ -11,15 +11,20 @@
     android:theme="@style/AppTheme.AppBarOverlay"
     app:popupTheme="@style/AppTheme.PopupOverlay">
 
-    <TextView
+    <HorizontalScrollView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:id="@+id/toolbar_tview"
-        android:enabled="false"
-        android:singleLine="true"
-        android:ellipsize="marquee"
-        android:marqueeRepeatLimit="marquee_forever"
-        android:focusable="false"
-        android:scrollHorizontally="true" />
+        android:scrollbars="none"
+        android:fadingEdge="horizontal">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:id="@+id/toolbar_tview"
+            android:enabled="false"
+            android:maxLines="1"
+            android:scrollHorizontally="true" />
+
+    </HorizontalScrollView>
 
 </android.support.v7.widget.Toolbar>

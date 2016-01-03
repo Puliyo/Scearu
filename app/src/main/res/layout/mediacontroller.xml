@@ -13,7 +13,8 @@
     <LinearLayout
         android:orientation="horizontal"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content">
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="-3dp">
         <ImageButton
             android:layout_width="0dp"
             android:layout_weight="1"
@@ -62,7 +63,9 @@
             android:layout_width="0dp"
             android:layout_weight="15"
             android:layout_height="wrap_content"
-            android:paddingLeft="5dp"
+            android:paddingLeft="10dp"
+            android:layout_marginRight="-10dp"
+            android:layout_marginTop="4dp"
             android:textAppearance="?android:attr/textAppearanceSmall"
             android:text="@string/mc_default_time"
             android:id="@+id/mc_currenttime" />
@@ -70,6 +73,7 @@
         <SeekBar
             android:layout_width="0dp"
             android:layout_weight="70"
+            android:layout_marginTop="-2dp"
             android:layout_height="wrap_content"
             android:id="@+id/mc_seekbar" />
 
@@ -78,6 +82,8 @@
             android:layout_weight="15"
             android:layout_height="wrap_content"
             android:paddingRight="5dp"
+            android:layout_marginLeft="-10dp"
+            android:layout_marginTop="4dp"
             android:textAppearance="?android:attr/textAppearanceSmall"
             android:text="@string/mc_default_time"
             android:id="@+id/mc_endtime" />
