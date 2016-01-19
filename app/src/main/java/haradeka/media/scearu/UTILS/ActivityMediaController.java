@@ -20,42 +20,45 @@ import haradeka.media.scearu.R;
 /**
  * Created by Puliyo on 31/12/2015.
  */
-public class MyMediaController {
-    private MyMediaPlayerControl mPlayer;
+public class ActivityMediaController extends BaseMediaController {
+    private ActivityControlListener controlListener;
     private Handler seekhandler;
     private StringBuilder timebuilder;
     private Formatter timeformatter;
+    private final Object lock = new Object();
 
     private LinearLayout mainController;
     private ImageButton shuffle;
     private ImageButton next;
     private ImageButton previous;
-    private ImageButton startstop;
+    private ImageButton play;
     private ImageButton repeat;
     private SeekBar seekbar;
     private TextView currenttime;
     private TextView endtime;
 
     private boolean showing;
-    private boolean shuffleOn;
-    private RepeatState repeatState;
     private boolean mDragging;
-    private boolean isPrepared;
-    private int fetchbuffer;
-    private int mbuffer;
-    private int fetchduration;
-    private int mduration;
-    private boolean runningHandler;
+    private boolean isPrepared = false;
+    private int prevDuration;
+    private int prevBuffer;
+    private int prevPosition;
+    private boolean runningHandler = false;
     private final static int UPDATE_FREQUENCY = 1000; // millis
-    public static enum RepeatState {
-        REPEAT, REPEATONE, NOREPEAT
-    }
+    private final static int MAX_PROGRESS = 1000; // the value 1000 must not be altered
 
-    public MyMediaController(Activity activity, int parent_res) {
+    /**
+     *
+     * @param activity Activity containing mediacontroller.xml
+     * @param parent_res Parent layout to insert media controller into
+     */
+    public ActivityMediaController(Activity activity, int parent_res) {
         this(activity, parent_res, false);
     }
 
-    public MyMediaController(Activity activity, int parent_res, boolean show) {
+    public ActivityMediaController(Activity activity, int parent_res, boolean show) {
+        super();
+
         LayoutInflater inflater = (LayoutInflater) activity.getSystemService(Context.LAYOUT_INFLATER_SERVICE);
         ViewGroup parent = (ViewGroup) activity.findViewById(parent_res);
 
@@ -65,49 +68,118 @@ public class MyMediaController {
         timeformatter = new Formatter(timebuilder, Locale.getDefault());
 
         mainController = (LinearLayout) activity.findViewById(R.id.mc_main_controller);
-        startstop = (ImageButton) activity.findViewById(R.id.mc_startstop);
+        play = (ImageButton) activity.findViewById(R.id.mc_play);
         next = (ImageButton) activity.findViewById(R.id.mc_next);
         previous = (ImageButton) activity.findViewById(R.id.mc_previous);
         shuffle = (ImageButton) activity.findViewById(R.id.mc_shuffle);
-        shuffleOn = true;
         repeat = (ImageButton) activity.findViewById(R.id.mc_repeat);
-        repeatState = RepeatState.REPEAT;
         seekbar = (SeekBar) activity.findViewById(R.id.mc_seekbar);
 
-        startstop.setOnClickListener(clickListener);
+        play.setOnClickListener(clickListener);
         next.setOnClickListener(clickListener);
         previous.setOnClickListener(clickListener);
         shuffle.setOnClickListener(clickListener);
         repeat.setOnClickListener(clickListener);
-        seekbar.setMax(1000);
+        seekbar.setMax(MAX_PROGRESS);
         seekbar.setOnSeekBarChangeListener(seekBarChangeListener);
 
         currenttime = (TextView) activity.findViewById(R.id.mc_currenttime);
         endtime = (TextView) activity.findViewById(R.id.mc_endtime);
         seekhandler = new Handler();
-        runningHandler = false;
 
-        if (show) {
+        if (showing = show) {
             show();
         } else {
             hide();
         }
     }
 
-    public void setMediaPlayer(MyMediaPlayerControl mPlayer) {
-        this.mPlayer = mPlayer;
+    @Override
+    /*
+     * Reset the buffer and duration cache.
+     * Enables the controller if disabled.
+     */
+    public void prepare() {
+        super.prepare();
+        isPrepared = true;
+        setEnabled(true);
+        prevDuration = -16;
+        prevBuffer = -16;
+        prevPosition = -16;
+        // no reason for -16, but -1 may cause problem when getDuration return -1.
+    }
+
+    @Override
+    public void complete() {
+        super.complete();
+        runHandler(false);
+        // sometimes seekbar jumps back few seconds
+        seekbar.setProgress(MAX_PROGRESS);
+        if (currenttime != null) {
+            currenttime.setText(stringForTime(prevDuration));
+        }
+        play.setImageResource(R.drawable.ic_pause);
+        isPrepared = false;
+    }
+
+    @Override
+    public void destroy() {
+        controlListener = null;
+    }
+
+    @Override
+    public void updatePlayIcon(boolean isPlayed) {
+        if (isPlayed) {
+            play.setImageResource(R.drawable.ic_pause);
+        } else {
+            play.setImageResource(R.drawable.ic_play_arrow);
+        }
+    }
+
+    @Override
+    public void updateSongName(String songName) {
+        controlListener.updateSongName(songName);
+    }
+
+    @Override
+    public void updateRepeatIcon(MediaService.RepeatState isRepeated) {
+        switch (isRepeated) {
+            case NOREPEAT:
+                repeat.setImageResource(R.drawable.ic_repeat);
+                invertAlpha(repeat, false);
+                break;
+            case REPEAT:
+                repeat.setImageResource(R.drawable.ic_repeat);
+                invertAlpha(repeat, true);
+                break;
+            case REPEATONE:
+                repeat.setImageResource(R.drawable.ic_repeat_one);
+                invertAlpha(repeat, true);
+                break;
+        }
+    }
+
+    @Override
+    public void updateShuffleIcon(boolean isShuffled) {
+        invertAlpha(shuffle, isShuffled);
+    }
+
+    @Override
+    public void updateNextIcon() {
+        setEnabled(false);
+    }
+
+    @Override
+    public void updatePreviousIcon() {
+        setEnabled(false);
+    }
+
+    public void setActivityControlListener(ActivityControlListener controlListener) {
+        this.controlListener = controlListener;
     }
 
     public boolean isShowing() {
         return showing;
-    }
-
-    public boolean isShuffleOn() {
-        return shuffleOn;
-    }
-
-    public RepeatState getRepeatState() {
-        return repeatState;
     }
 
     public void show() {
@@ -128,56 +200,35 @@ public class MyMediaController {
 
     public void setEnabled(boolean enabled) {
         runHandler(enabled);
-        if (mainController.isEnabled() == enabled) return;
-        mainController.setEnabled(enabled);
-    }
-
-    /**
-     * Call prepare to reset the buffer and duration cache.
-     * This class will enable the controller if disabled.
-     */
-    public void prepare() {
-        isPrepared = true;
-        if (!seekbar.isEnabled()) {
-            seekbar.setEnabled(true);
-        }
-        fetchbuffer = 0;
-        mbuffer = -16;
-        fetchduration = 0;
-        mduration = -16; // no reason for -16, but -1 may cause problem when getDuration return -1.
-    }
-
-    /**
-     * Call complete to notify the song have finished.
-     */
-    public void complete() {
-        // sometimes seekbar jumps backwards. complete() are created to prevent this.
-        runHandler(false);
-        seekbar.setProgress(1000);
-        if (currenttime != null) {
-            currenttime.setText(stringForTime(mduration));
-        }
-        isPrepared = false;
+        if (play.isEnabled() == enabled) return;
+        play.setEnabled(enabled);
+        next.setEnabled(enabled);
+        previous.setEnabled(enabled);
+        seekbar.setEnabled(enabled);
+        invertAlpha(play, enabled);
+        invertAlpha(next, enabled);
+        invertAlpha(previous, enabled);
     }
 
     private Runnable seekRunner = new Runnable() {
         @Override
         public void run() {
             if (seek()) {
-                seekhandler.postDelayed(seekRunner, 1000);
+                seekhandler.postDelayed(seekRunner, UPDATE_FREQUENCY);
             }
         }
     };
 
     private void runHandler(boolean run) {
-        if (run) {
-            if (runningHandler) return;
-            seekRunner.run();
-        } else {
-            if (!runningHandler) return;
-            seekhandler.removeCallbacks(seekRunner);
+        if (run == runningHandler) return;
+        synchronized (lock) {
+            if (run) {
+                seekRunner.run();
+            } else {
+                seekhandler.removeCallbacks(seekRunner);
+            }
+            runningHandler = !runningHandler;
         }
-        runningHandler = !runningHandler;
     }
 
     private String stringForTime(int timeMs) {
@@ -195,23 +246,24 @@ public class MyMediaController {
 
     private boolean seek() {
         if (!isPrepared) {
-            Log.e(App.SCEARU_TAG, "Illegal State Exception in MediaController");
+            Log.w(App.SCEARU_TAG, "Illegal State in MediaController");
             runHandler(false);
             return false;
         }
-        if (mPlayer == null || seekbar == null | mDragging) return true;
-        int position = mPlayer.getCurrentPosition();
+        if (controlListener == null || seekbar == null) return false;
+        if (mDragging) return true;
+
+        int position = controlListener.getCurrentPosition();
         if (position < 0) {
             runHandler(false);
             seekbar.setEnabled(false);
             return false;
         }
 
-        final int BUFFERCOUNT = 5;
-        int duration;
-        if (fetchduration < BUFFERCOUNT) { // prevent overhead
-            duration = mPlayer.getDuration();
+        if (position != prevPosition) { // prevent overhead
+            int duration = controlListener.getDuration();
             if (duration < 0) {
+                Log.e(App.SCEARU_TAG, "Failed to get Music Duration");
                 runHandler(false);
                 seekbar.setEnabled(false);
                 return false;
@@ -219,83 +271,53 @@ public class MyMediaController {
             if (endtime != null) {
                 endtime.setText(stringForTime(duration));
             }
-            if (duration == mduration) {
-                fetchduration++;
-            } else {
-                fetchduration = 0;
-                mduration = duration;
+            if (duration > 0) {
+                long pos = 1000L * position / duration;
+                seekbar.setProgress((int) pos);
             }
-        } else {
-            duration = mduration;
+            prevDuration = duration;
         }
 
-        if (fetchbuffer < BUFFERCOUNT) { // prevent overhead
-            int buffer = mPlayer.getBufferPercentage() * 10;
-            seekbar.setSecondaryProgress(buffer);
-            if (buffer == mbuffer) {
-                fetchbuffer++;
-            } else {
-                fetchbuffer = 0;
-                mbuffer = buffer;
-            }
-        }
-
-        if (duration > 0) {
-            long pos = 1000L * position / duration;
-            seekbar.setProgress((int) pos);
-        }
-        if (currenttime != null) {
+        if (currenttime != null && position != prevPosition) {
             currenttime.setText(stringForTime(position));
+            prevPosition = position;
+        }
+
+        int buffer = controlListener.getBufferPercentage();
+        if (buffer != prevBuffer) { // prevent overhead
+            seekbar.setSecondaryProgress(buffer * 10);
+            prevBuffer = buffer;
         }
 
         return true;
+    }
+
+    private void invertAlpha(View v, boolean invert) {
+        if (invert) {
+            v.setAlpha(1f);
+        } else {
+            v.setAlpha(0.3f);
+        }
     }
 
     private View.OnClickListener clickListener = new View.OnClickListener() {
         @Override
         public void onClick(View v) {
             switch (v.getId()) {
-                case R.id.mc_startstop:
-                    if (mPlayer.isPlaying()) {
-                        mPlayer.pause();
-                        ((ImageButton) v).setImageResource(R.drawable.ic_pause);
-                    } else {
-                        mPlayer.start();
-                        ((ImageButton) v).setImageResource(R.drawable.ic_play_arrow);
-                        prepare();
-                    }
+                case R.id.mc_play:
+                    controlListener.play();
                     break;
                 case R.id.mc_shuffle:
-                    if (shuffleOn) {
-                        v.setAlpha(0.3f);
-                    } else {
-                        v.setAlpha(1f);
-                    }
-                    shuffleOn = !shuffleOn;
+                    controlListener.shuffle();
                     break;
                 case R.id.mc_next:
-                    mPlayer.next();
+                    controlListener.next();
                     break;
                 case R.id.mc_previous:
-                    mPlayer.previous();
+                    controlListener.previous();
                     break;
                 case R.id.mc_repeat:
-                    switch (repeatState) {
-                        case NOREPEAT:
-                            ((ImageButton) v).setImageResource(R.drawable.ic_repeat);
-                            v.setAlpha(1f);
-                            repeatState = RepeatState.REPEAT;
-                            break;
-                        case REPEAT:
-                            ((ImageButton) v).setImageResource(R.drawable.ic_repeat_one);
-                            repeatState = RepeatState.REPEATONE;
-                            break;
-                        case REPEATONE:
-                            ((ImageButton) v).setImageResource(R.drawable.ic_repeat);
-                            v.setAlpha(0.3f);
-                            repeatState = RepeatState.NOREPEAT;
-                            break;
-                    }
+                    controlListener.repeat();
                     break;
             }
         }
@@ -305,9 +327,9 @@ public class MyMediaController {
         @Override
         public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
             if (!fromUser) return;
-            long duration = mPlayer.getDuration();
+            long duration = controlListener.getDuration();
             long newposition = (duration * progress) / 1000L;
-            mPlayer.seekTo((int) newposition);
+            controlListener.seekTo((int) newposition);
             if (currenttime != null) {
                 currenttime.setText(stringForTime((int) newposition));
             }
@@ -326,15 +348,16 @@ public class MyMediaController {
         }
     };
 
-    public interface MyMediaPlayerControl {
-        void start();
-        void pause();
-        boolean isPlaying();
+    public interface ActivityControlListener {
+        void play();
+        void shuffle();
+        void repeat();
+        void previous();
+        void next();
+        void updateSongName(String songName);
         int getCurrentPosition();
         int getDuration();
         int getBufferPercentage();
         void seekTo(int pos);
-        void next();
-        void previous();
     }
 }

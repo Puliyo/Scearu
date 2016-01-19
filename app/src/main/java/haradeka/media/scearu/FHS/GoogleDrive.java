@@ -47,6 +47,7 @@ public class GoogleDrive extends FileHostingService {
     private BaseAsyncTask taskRequestFiles = null;
     private List<File> driveFiles = null;
     private GoogleDriveAdapter driveAdapter = null;
+    private Object lock = new Object();
 
 
     private GoogleDrive() {}
@@ -126,12 +127,14 @@ public class GoogleDrive extends FileHostingService {
     }
 
     @Override
-    public synchronized FHSAdapter getAdapter(Context context) {
-        if (driveAdapter == null) {
-            driveAdapter = new GoogleDriveAdapter(context, HASH_KEY_NAMES);
+    public FHSAdapter getAdapter(Context context) {
+        synchronized (lock) {
+            if (driveAdapter == null) {
+                driveAdapter = new GoogleDriveAdapter(context, HASH_KEY_NAMES);
+            }
+            driveAdapter.fixContext(context);
+            return driveAdapter;
         }
-        driveAdapter.fixContext(context);
-        return driveAdapter;
     }
 
     public String getToken(Activity activity) {
