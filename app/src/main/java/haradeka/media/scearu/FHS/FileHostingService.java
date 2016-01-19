@@ -29,6 +29,10 @@ public abstract class FileHostingService {
      * SharedPreferences storage name
      */
     public static final String FHS_ACCOUNT_PREFS = "FHS_ACCOUNT_PREFS";
+
+    /**
+     * Storage dirname
+     */
     protected static final String ROOT_MEDIA_DIR = "Scearu";
     protected static final String MEDIA_DIR_MUSIC = "Music";
     protected static final String MEDIA_DIR_VIDEO = "Video";
@@ -39,13 +43,21 @@ public abstract class FileHostingService {
      * @param activity Activity to handle UI.
      */
     public abstract void connect(Activity activity);
+
+    /**
+     * Sets FHS ready to be destroyed (back to initialised state).
+     */
     public abstract void disconnect();
-    public void interrupt() {};
+
+    /**
+     * Interrupt any intermittent or update task.
+     */
+    public void interrupt() {}
 
     /**
      * Store account name to SharedPreferences.
      * Caller class is used as key name.
-     * @param accountName Account Name to store.
+     * @param accountName Account Name to store
      */
     public void storeAccountName(String accountName) {
         SharedPreferences.Editor editor =
@@ -60,7 +72,7 @@ public abstract class FileHostingService {
     /**
      * Get account name stored in SharedPreferences.
      * Caller class is used as key name.
-     * @return account name.
+     * @return account name
      */
     public String getSavedAccountName() {
         SharedPreferences prefs = App.getAppContext().getSharedPreferences(
@@ -69,19 +81,25 @@ public abstract class FileHostingService {
         return prefs.getString(getClass().getSimpleName() + "_account_name", "");
     }
 
+    public FHSAdapter getAdapter() {
+        return getAdapter(null);
+    }
+
     /**
-     * Create Adapter
-     * @param context
-     * @return
+     * Gets adapter. Create adapter here if not initialised.
+     * @param context Context passed to FHSAdapter
+     * @return FHSAdapter
      */
     public abstract FHSAdapter getAdapter(Context context);
 
     /**
      * Custom adapter used to list media detail in listview.
-     * The adapter contains <i>hashMap</i> to where you store list items.
+     * The adapter contains <i>hashMap</i> where you store list items.
      * The <i>defaultKey</i> will be used as a title on generating list view.
      * When extending, generally, you only have to override <i>update</i> method.
      * Within <i>update</i> method, make change to <i>hashMap</i> to update items.
+     *
+     * Subclass must be designed so the adapter can survive without context.
      */
     public static abstract class FHSAdapter extends BaseAdapter {
         protected WeakReference<Context> weakContext;
@@ -90,8 +108,8 @@ public abstract class FileHostingService {
 
         /**
          *
-         * @param weakContext
-         * @param defaultKey Will be used for title when listing view
+         * @param weakContext Context used when displaying list item
+         * @param defaultKey default key value used for getItem()
          */
         public FHSAdapter(WeakReference<Context> weakContext, String defaultKey) {
             this.weakContext = weakContext;
@@ -207,7 +225,7 @@ public abstract class FileHostingService {
          */
         protected boolean onCancelled(Exception error) {
             return false;
-        };
+        }
 
         @Override
         /**
@@ -231,8 +249,6 @@ public abstract class FileHostingService {
          * onCancelled() is called if boolean enforceError is true.
          */
         protected void onCancelled() {
-            Activity activity = weakActivity.get();
-
             if (error == null) {
                 Log.i(App.SCEARU_TAG, "Missing error");
                 Toast.makeText(

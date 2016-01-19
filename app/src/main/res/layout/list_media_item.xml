@@ -8,6 +8,5 @@
         android:layout_height="wrap_content"
         android:textAppearance="?android:attr/textAppearanceMedium"
         android:id="@+id/media_item_text"
-        android:paddingTop="4dp"
-        android:paddingBottom="4dp" />
+        android:padding="4dp" />
 </LinearLayout>

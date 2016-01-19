@@ -13,7 +13,6 @@ import android.widget.Toast;
 import haradeka.media.scearu.UI.MusicActivity;
 import haradeka.media.scearu.UTILS.AboutActivity;
 import haradeka.media.scearu.UTILS.App;
-import haradeka.media.scearu.UTILS.MediaService;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -41,7 +40,13 @@ public class MainActivity extends AppCompatActivity {
                 }
             });
         }
-        startService(new Intent(this, MediaService.class));
+
+        Button some_btn = (Button) findViewById(R.id.button3);
+        some_btn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+            }
+        });
     }
 
     @Override
@@ -51,7 +56,6 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onDestroy() {
-        stopService(new Intent(this, MediaService.class));
         super.onDestroy();
     }
 

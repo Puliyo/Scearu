@@ -35,19 +35,17 @@ public abstract class ScearuActivity extends AppCompatActivity {
     @Override
     protected void onStart() {
         super.onStart();
-
-//        mBound = Status.PENDING;
         Intent intent = new Intent(this, MediaService.class);
         bindService(intent, mConnection, Context.BIND_AUTO_CREATE);
     }
 
     @Override
-    protected void onStop() {
-        super.onStop();
+    protected void onDestroy() {
         if (bounded) {
             unbindService(mConnection);
             bounded = false;
         }
+        super.onDestroy();
     }
 
     public boolean isBounded() {
