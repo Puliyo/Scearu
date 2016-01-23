@@ -1,7 +1,6 @@
 package haradeka.media.scearu.FHS;
 
 import android.app.Activity;
-import android.content.Context;
 import android.os.AsyncTask;
 import android.util.Log;
 import android.widget.Toast;
@@ -19,7 +18,6 @@ import com.google.api.services.drive.DriveScopes;
 import com.google.api.services.drive.model.File;
 
 import java.io.IOException;
-import java.lang.ref.WeakReference;
 import java.util.Collections;
 import java.util.List;
 
@@ -29,7 +27,6 @@ import haradeka.media.scearu.UTILS.App;
  * Created by Puliyo on 14/11/2015.
  */
 public class GoogleDrive extends FileHostingService {
-
     private static GoogleDrive instance;
 
     public static final int REQUEST_GOOGLE_PLAY_SERVICES = 10;
@@ -40,14 +37,10 @@ public class GoogleDrive extends FileHostingService {
     private static final String DL_URL_SUFFIX_SECURE = "?alt=media";
     private static final String DL_URL_PREFIX_PUBLIC = "https://drive.google.com/uc?export=download&id=";
     private static final String DL_URL_SUFFIX_PUBLIC = "";
-    public static final String HASH_KEY_NAMES = "names";
-    public static final String HASH_KEY_IDS = "ids";
 
     private GoogleAccountCredential cred = null;
     private BaseAsyncTask taskRequestFiles = null;
     private List<File> driveFiles = null;
-    private GoogleDriveAdapter driveAdapter = null;
-    private Object lock = new Object();
 
 
     private GoogleDrive() {}
@@ -98,9 +91,10 @@ public class GoogleDrive extends FileHostingService {
     @Override
     public void disconnect() {
         interrupt();
-        if (driveAdapter != null) {
-            driveAdapter.release();
-            driveAdapter = null;
+        if (fhsAdapter != null) {
+            fhsAdapter.clear();
+            fhsAdapter.detach();
+            fhsAdapter = null;
         }
         if (driveFiles != null) {
             driveFiles.clear();
@@ -127,14 +121,19 @@ public class GoogleDrive extends FileHostingService {
     }
 
     @Override
-    public FHSAdapter getAdapter(Context context) {
-        synchronized (lock) {
-            if (driveAdapter == null) {
-                driveAdapter = new GoogleDriveAdapter(context, HASH_KEY_NAMES);
-            }
-            driveAdapter.fixContext(context);
-            return driveAdapter;
+    public void adapterOnUpdate() {
+        int size = (driveFiles == null) ? 0 : driveFiles.size();
+        fhsAdapter.clear();
+        String[] names = new String[size];
+        String[] sizes = new String[size];
+        String[] uniques = new String[size];
+        for (int i = 0; i < size; i++) {
+            File file = driveFiles.get(i);
+            names[i] = file.getTitle();
+            sizes[i] = String.format("%.1fMB", (file.getFileSize() / 1024d) / 1024d);
+            uniques[i] = file.getId();
         }
+        fhsAdapter.setItem(names, sizes, uniques);
     }
 
     public String getToken(Activity activity) {
@@ -152,30 +151,6 @@ public class GoogleDrive extends FileHostingService {
 
     public static String getPublicDownloadURL(String id) {
         return DL_URL_PREFIX_PUBLIC + id + DL_URL_SUFFIX_PUBLIC;
-    }
-
-    private class GoogleDriveAdapter extends FHSAdapter {
-
-        public GoogleDriveAdapter(Context context, String defaultKey) {
-            super(new WeakReference<Context>(context), defaultKey);
-        }
-
-        @Override
-        public void update() {
-            int size = (driveFiles == null) ? 0 : driveFiles.size();
-            hashMap.clear();
-            String[] names = new String[size];
-            String[] ids = new String[size];
-            for (int i = 0; i < size; i++) {
-                File file = driveFiles.get(i);
-                names[i] = file.getTitle();
-                ids[i] = file.getId();
-            }
-            hashMap.put(HASH_KEY_NAMES, names);
-            hashMap.put(HASH_KEY_IDS, ids);
-
-            this.notifyDataSetChanged();
-        }
     }
 
     private List<File> getRootDirs(Drive service) throws IOException {
@@ -283,7 +258,7 @@ public class GoogleDrive extends FileHostingService {
             protected void onPostExecute(List<File> files) {
                 super.onPostExecute(files);
                 if (driveFiles == null || driveFiles.isEmpty()) return;
-                driveAdapter.update();
+                fhsAdapter.update();
             }
 
         };

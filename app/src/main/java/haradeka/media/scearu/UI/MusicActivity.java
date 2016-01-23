@@ -13,7 +13,7 @@ import android.widget.ListView;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import haradeka.media.scearu.FHS.FileHostingService;
+import haradeka.media.scearu.FHS.FHSAdapter;
 import haradeka.media.scearu.R;
 import haradeka.media.scearu.UTILS.ActivityMediaController;
 import haradeka.media.scearu.UTILS.App;
@@ -24,6 +24,8 @@ public class MusicActivity extends ScearuActivity {
     private Handler killTimer;
     private TextView musicTitle;
     private ActivityMediaController mediaController;
+    private FHSAdapter fhsAdapter;
+    ListView mediaFiles;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -35,11 +37,11 @@ public class MusicActivity extends ScearuActivity {
         startService(new Intent(this, MediaService.class));
         killTimer = new Handler();
 
-        ListView mediaFiles = (ListView) findViewById(R.id.music_list_files);
+        mediaFiles = (ListView) findViewById(R.id.music_list_files);
         mediaFiles.setEmptyView(findViewById(R.id.music_tview_empty));
         mediaFiles.setOnItemClickListener(itemClickListener);
 
-        FileHostingService.FHSAdapter fhsAdapter = fhs.getAdapter(mediaFiles.getContext());
+        fhsAdapter = fhs.getAdapter();
         mediaFiles.setAdapter(fhsAdapter);
 
         if (fhsAdapter.getCount() == 0) { // cache
@@ -50,6 +52,7 @@ public class MusicActivity extends ScearuActivity {
     @Override
     protected void onStart() {
         super.onStart();
+        fhsAdapter.attach(mediaFiles.getContext(), onEditListener);
         killTimer.removeCallbacks(killRunner);
     }
 
@@ -57,6 +60,7 @@ public class MusicActivity extends ScearuActivity {
     protected void onStop() {
         super.onStop();
         fhs.interrupt();
+        fhsAdapter.detach();
         killTimer.postDelayed(killRunner, 5 * 60 * 1000);
     }
 
@@ -81,7 +85,7 @@ public class MusicActivity extends ScearuActivity {
     public boolean onOptionsItemSelected(MenuItem item) {
         switch (item.getItemId()) {
             case R.id.music_toolbar_refresh:
-                FileHostingService.FHSAdapter fhsAdapter = fhs.getAdapter();
+                fhsAdapter = fhs.getAdapter();
                 if (fhsAdapter != null) {
                     fhsAdapter.clear();
                     fhsAdapter.notifyDataSetChanged();
@@ -98,6 +102,15 @@ public class MusicActivity extends ScearuActivity {
         public void run() {
             Log.d(App.SCEARU_TAG, "Killing MusicAct");
             finish();
+        }
+    };
+
+    private FHSAdapter.OnEditListener onEditListener = new FHSAdapter.OnEditListener() {
+        @Override
+        public void onEditClick(String title, String unique) {
+            String s = title + " : " + unique;
+            Log.d(App.SCEARU_TAG, "Hello Editor! <" + s + ">");
+            Toast.makeText(getApplicationContext(), s, Toast.LENGTH_SHORT).show();
         }
     };
 

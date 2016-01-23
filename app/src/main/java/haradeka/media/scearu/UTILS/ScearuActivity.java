@@ -40,12 +40,12 @@ public abstract class ScearuActivity extends AppCompatActivity {
     }
 
     @Override
-    protected void onDestroy() {
+    protected void onStop() {
         if (bounded) {
             unbindService(mConnection);
             bounded = false;
         }
-        super.onDestroy();
+        super.onStop();
     }
 
     public boolean isBounded() {
