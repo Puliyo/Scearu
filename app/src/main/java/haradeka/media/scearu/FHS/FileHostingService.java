@@ -6,25 +6,25 @@ import android.content.SharedPreferences;
 import android.os.AsyncTask;
 import android.os.Handler;
 import android.util.Log;
-import android.view.LayoutInflater;
-import android.view.View;
-import android.view.ViewGroup;
-import android.widget.BaseAdapter;
-import android.widget.TextView;
 import android.widget.Toast;
 
 import java.lang.ref.WeakReference;
-import java.util.HashMap;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 
-import haradeka.media.scearu.R;
 import haradeka.media.scearu.UTILS.App;
 
 /**
  * Created by Puliyo on 14/11/2015.
  */
 public abstract class FileHostingService {
+    private Object lock = new Object();
+
+    /**
+     * Stores FHS files details
+     */
+    protected FHSAdapter fhsAdapter = null;
+
     /**
      * SharedPreferences storage name
      */
@@ -81,101 +81,28 @@ public abstract class FileHostingService {
         return prefs.getString(getClass().getSimpleName() + "_account_name", "");
     }
 
+    /**
+     * <i>update</i> listener for FHSAdapter
+     */
+    public abstract void adapterOnUpdate();
+
+    /**
+     * Gets adapter.
+     * Instantiate <i>fhsAdapter</i> here.
+     * @return FHSAdapter <i>fhsAdapter</i>
+     */
     public FHSAdapter getAdapter() {
-        return getAdapter(null);
-    }
-
-    /**
-     * Gets adapter. Create adapter here if not initialised.
-     * @param context Context passed to FHSAdapter
-     * @return FHSAdapter
-     */
-    public abstract FHSAdapter getAdapter(Context context);
-
-    /**
-     * Custom adapter used to list media detail in listview.
-     * The adapter contains <i>hashMap</i> where you store list items.
-     * The <i>defaultKey</i> will be used as a title on generating list view.
-     * When extending, generally, you only have to override <i>update</i> method.
-     * Within <i>update</i> method, make change to <i>hashMap</i> to update items.
-     *
-     * Subclass must be designed so the adapter can survive without context.
-     */
-    public static abstract class FHSAdapter extends BaseAdapter {
-        protected WeakReference<Context> weakContext;
-        protected HashMap<String, String[]> hashMap;
-        protected String defaultKey;
-
-        /**
-         *
-         * @param weakContext Context used when displaying list item
-         * @param defaultKey default key value used for getItem()
-         */
-        public FHSAdapter(WeakReference<Context> weakContext, String defaultKey) {
-            this.weakContext = weakContext;
-            this.hashMap = new HashMap<String, String[]>();
-            this.defaultKey = defaultKey;
-            this.update();
-        }
-
-        /**
-         * Make sure to preserve defaultKey.
-         */
-        public abstract void update();
-
-        public void clear() {
-            hashMap.clear();
-        }
-
-        public void release() {
-            hashMap.clear();
-            weakContext.clear();
-        }
-
-        public void fixContext(Context context) {
-            if (weakContext.get() == null && context != null) {
-                weakContext = new WeakReference<Context>(context);
+        synchronized (lock) {
+            if (fhsAdapter == null) {
+                fhsAdapter = new FHSAdapter() {
+                    @Override
+                    public void update() {
+                        adapterOnUpdate();
+                        this.notifyDataSetChanged(); // update UI
+                    }
+                };
             }
-        }
-
-        @Override
-        public int getCount() {
-            String[] values = hashMap.get(defaultKey);
-            return (values == null) ? 0 : values.length;
-        }
-
-        @Override
-        public String getItem(int position) {
-            String[] values = hashMap.get(defaultKey);
-            return (values == null) ? null : values[position];
-        }
-
-        @Override
-        public long getItemId(int position) {
-            return position;
-        }
-
-        public String getItem(String key, int position) {
-            String[] values = hashMap.get(key);
-            return (values == null) ? null : values[position];
-        }
-
-        @Override
-        public View getView(int position, View convertView, ViewGroup parent) {
-            View v = convertView;
-            Context context = weakContext.get();
-
-            if (context == null) return v;
-
-            if (v == null) {
-                v = ((LayoutInflater) context.getSystemService(Context.LAYOUT_INFLATER_SERVICE))
-                        .inflate(R.layout.list_media_item, null);
-            }
-
-            TextView name = (TextView) v.findViewById(R.id.media_item_text);
-            name.setText(hashMap.get(defaultKey)[position]);
-
-            return v;
+            return fhsAdapter;
         }
     }
 

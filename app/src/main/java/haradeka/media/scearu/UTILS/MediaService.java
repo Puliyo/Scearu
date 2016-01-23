@@ -5,6 +5,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.SharedPreferences;
 import android.media.AudioManager;
 import android.media.MediaPlayer;
 import android.net.Uri;
@@ -27,6 +28,7 @@ import haradeka.media.scearu.FHS.GoogleDrive;
  * Created by Puliyo on 21/12/2015.
  */
 public class MediaService extends Service {
+    private static final String PREFACCOUNTNAME = "mediaservice_account_name";
     public static final String SHUFFLE_ACTION = "haradeka.media.scearu.shuffle";
     public static final String REPEAT_ACTION = "haradeka.media.scearu.repeat";
     public static final String PREVIOUS_ACTION = "haradeka.media.scearu.previous";
@@ -45,8 +47,8 @@ public class MediaService extends Service {
     private Random random;
     private int bufferPercentage;
     private int itemposition = -1;
-    private boolean shuffle = true;
-    private RepeatState repeat = RepeatState.REPEAT;
+    private boolean shuffle;
+    private RepeatState repeat;
     public enum RepeatState {
         REPEAT, REPEATONE, NOREPEAT
     }
@@ -55,7 +57,7 @@ public class MediaService extends Service {
     @Override
     public void onCreate() {
         Log.d(App.SCEARU_TAG, "Hello Service");
-        // FHS
+        /* FHS */
         fhs = GoogleDrive.getInstance();
 
         /* Music */
@@ -123,6 +125,8 @@ public class MediaService extends Service {
             }
         });
         mp.setWakeMode(App.getAppContext(), PowerManager.PARTIAL_WAKE_LOCK);
+
+        setPreferences();
         random = new Random();
     }
 
@@ -137,6 +141,7 @@ public class MediaService extends Service {
         if (fhs != null) fhs.disconnect();
         stopForeground(true);
         if (receiver != null) unregisterReceiver(receiver);
+        storePreferences();
         Log.d(App.SCEARU_TAG, "Bye Service");
         super.onDestroy();
     }
@@ -220,8 +225,7 @@ public class MediaService extends Service {
                     Log.d(App.SCEARU_TAG, "Oops! Error! MediaService:1");
                     return; // TODO: Handle token missing error
                 }
-                // TODO: Make code FHS compatible
-                String id = fhs.getAdapter().getItem(GoogleDrive.HASH_KEY_IDS, position);
+                String id = fhs.getAdapter().getUniqueItem(position);
                 if (id == null || id.isEmpty()) {
                     Log.d(App.SCEARU_TAG, "Oops! Error! MediaService:2");
                     return; // TODO: Handle id missing error
@@ -264,6 +268,49 @@ public class MediaService extends Service {
         if (mp.isPlaying()) mp.stop();
         prepare(position);
         itemposition = position;
+    }
+
+    public void storePreferences() {
+        SharedPreferences.Editor editor =
+                App.getAppContext().getSharedPreferences(
+                        FileHostingService.FHS_ACCOUNT_PREFS,
+                        Context.MODE_PRIVATE
+                ).edit();
+        StringBuilder sb = new StringBuilder();
+        sb.append((shuffle) ? 1 : 0);
+        sb.append(":");
+        switch (repeat) {
+            case NOREPEAT: sb.append(0); break;
+            case REPEATONE: sb.append(1); break;
+            case REPEAT:
+            default: sb.append(2); break;
+        }
+        editor.putString(sb.toString(), PREFACCOUNTNAME);
+        editor.apply();
+    }
+
+    public void setPreferences() {
+        SharedPreferences prefs = App.getAppContext().getSharedPreferences(
+                FileHostingService.FHS_ACCOUNT_PREFS,
+                Context.MODE_PRIVATE);
+        String[] values = prefs.getString(PREFACCOUNTNAME, "1:2").split(":");
+        if (values.length < 2) {
+            values = new String[]{"1", "2"};
+        }
+
+        if (values[0].equals("1")) {
+            shuffle = true;
+        } else {
+            shuffle = false;
+        }
+
+        if (values[1].equals("0")) {
+            repeat = RepeatState.NOREPEAT;
+        } else if (values[1].equals("1")) {
+            repeat = RepeatState.REPEAT;
+        } else if (values[1].equals("2")) {
+            repeat = RepeatState.REPEATONE;
+        }
     }
 
     /************************************
